@@ -32,6 +32,10 @@ jobs:
           pass = $OBSCURED
           EOF
 
+      - name: Ensure destination folder exists
+        run: |
+          rclone mkdir nextcloud:${{ secrets.NEXTCLOUD_PATH }} || true
+
       - name: Sync to Nextcloud
         run: |
           rclone sync . nextcloud:${{ secrets.NEXTCLOUD_PATH }} \
@@ -41,6 +45,7 @@ jobs:
             --exclude "node_modules/**" \
             --exclude "*.log" \
             --create-empty-src-dirs \
+            --ignore-errors \
             --progress \
             -v
 
