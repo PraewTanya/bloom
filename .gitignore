@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # macOS
 .DS_Store
 .AppleDouble
@@ -26,3 +27,11 @@ ref.jpg
 .env
 .env.local
 secrets.txt
+=======
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+>>>>>>> 3fc1ea610d2bf646dc76344c9ff7e4a4650b6eeb
