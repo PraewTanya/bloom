@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node (if ever used)
+node_modules/
+package-lock.json
+package.json
+
+# Logs
+*.log
+
+# Local testing artefacts
+test_load.js
+ref.jpg
+
+# Sensitive files (just in case)
+.env
+.env.local
+secrets.txt
