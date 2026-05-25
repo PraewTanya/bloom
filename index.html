@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div style="display:flex; align-items:center; gap:16px;">
+          <div class="avatar avatar-lg" id="dash-avatar">🌸</div>
+          <div>
+            <div class="greeting" id="greeting">Welcome</div>
+            <div class="date-line" id="date-line"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="quote-card" id="quote-card"></div>
+
+      <div class="grid grid-4" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <span class="stat-label">Today's tasks</span>
+          <span class="stat-value" id="stat-tasks">0</span>
+          <span class="stat-hint" id="stat-tasks-hint">Nothing pending — bliss 🌸</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Today's events</span>
+          <span class="stat-value" id="stat-events">0</span>
+          <span class="stat-hint" id="stat-events-hint">Free as a butterfly</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Habits done today</span>
+          <span class="stat-value" id="stat-habits">0</span>
+          <span class="stat-hint" id="stat-habits-hint">Add habits to start</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Garden growth</span>
+          <span class="stat-value" id="stat-garden">🌱</span>
+          <span class="stat-hint" id="stat-garden-hint">Plant your first seed</span>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📅 Today's events</div>
+            <a href="calendar.html" class="btn btn-ghost btn-sm">View calendar</a>
+          </div>
+          <div id="today-events"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">✅ Today's tasks</div>
+            <a href="todo.html" class="btn btn-ghost btn-sm">View all</a>
+          </div>
+          <div id="today-todos"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🌱 Today's habits</div>
+            <a href="habits.html" class="btn btn-ghost btn-sm">View all</a>
+          </div>
+          <div id="today-habits"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">💗 Mood check-in</div>
+            <a href="mood.html" class="btn btn-ghost btn-sm">View tracker</a>
+          </div>
+          <div id="today-mood"></div>
+        </div>
+      </div>
+
+      <div class="card mt-2">
+        <div class="card-title">🌸 Your year so far</div>
+        <div class="grid grid-4" style="margin-bottom:0;" id="year-stats"></div>
+      </div>
+
+      <div class="garden-card mt-2">
+        <h3>🌿 Your garden today</h3>
+        <p class="text-muted" id="garden-text">Every task you complete and every event you keep makes your garden grow. Welcome to Bloom — a calm space for your whole life.</p>
+        <div id="garden-svg-wrap"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    async function refreshPage() {
+      const s = BLOOM.getSettings();
+      // Avatar
+      const av = document.getElementById('dash-avatar');
+      if (av) {
+        const src = await resolveImgSrc(s.avatar);
+        if (src) av.innerHTML = `<img src="${src}" alt="">`;
+        else av.textContent = s.name ? s.name.trim().charAt(0).toUpperCase() : '🌸';
+      }
+      document.getElementById('greeting').textContent = getGreeting(s.name) + ' 🌸';
+      const today = new Date();
+      document.getElementById('date-line').textContent = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      document.getElementById('quote-card').textContent = '"' + quoteOfTheDay() + '"';
+
+      BLOOM.carryOverTodos();
+      const t = BLOOM.today();
+      const todos = BLOOM.getTodos().filter(x => !x.done && (!x.dueDate || x.dueDate === t));
+      const events = BLOOM.getEvents().filter(e => e.date === t).sort((a,b)=> (a.time||'').localeCompare(b.time||''));
+      const habits = BLOOM.getHabits();
+      const habitsDone = habits.filter(h => h.checks && h.checks[t]).length;
+      const moods = BLOOM.getMoods();
+      const todayMood = moods[t];
+
+      // stats
+      document.getElementById('stat-tasks').textContent = todos.length;
+      document.getElementById('stat-tasks-hint').textContent = todos.length === 0 ? 'Nothing pending — bliss 🌸' : (todos.length === 1 ? 'one tiny task' : `${todos.length} tasks waiting`);
+      document.getElementById('stat-events').textContent = events.length;
+      document.getElementById('stat-events-hint').textContent = events.length === 0 ? 'Free as a butterfly' : (events.length === 1 ? 'one moment to keep' : `${events.length} moments today`);
+      document.getElementById('stat-habits').textContent = habits.length === 0 ? '0' : `${habitsDone}/${habits.length}`;
+      document.getElementById('stat-habits-hint').textContent = habits.length === 0 ? 'Add habits to start' : (habitsDone === habits.length ? 'All checked — beautiful 🌸' : `${habits.length - habitsDone} left for today`);
+
+      const moodCount = Object.keys(moods).length;
+      const diaryCount = BLOOM.getDiary().length;
+      const totalActivity = BLOOM.getTodos().filter(x=>x.done).length + BLOOM.getEvents().length + moodCount + diaryCount + habits.length;
+      let stage = '🌱', hint = 'Plant your first seed';
+      if (totalActivity > 50) { stage = '🦋'; hint = 'In full bloom — keep soaring'; }
+      else if (totalActivity > 25) { stage = '🌸'; hint = 'Blossoming beautifully'; }
+      else if (totalActivity > 10) { stage = '🌿'; hint = 'Growing strong'; }
+      else if (totalActivity > 0) { stage = '🌱'; hint = 'Sprouting nicely'; }
+      document.getElementById('stat-garden').textContent = stage;
+      document.getElementById('stat-garden-hint').textContent = hint;
+
+      // today events list
+      const evBox = document.getElementById('today-events');
+      if (events.length === 0) {
+        evBox.innerHTML = '<div class="empty-state">No events today. A blank canvas 🤍</div>';
+      } else {
+        evBox.innerHTML = events.map(e => `
+          <div class="todo-item">
+            <span class="chip cat-${e.category || 'other'}">${(e.time || '—')}</span>
+            <div class="todo-content">
+              <div class="todo-title">${escapeHtml(e.title)}</div>
+              ${e.location ? `<div class="todo-meta">📍 ${escapeHtml(e.location)}</div>` : ''}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // today todos list
+      const tdBox = document.getElementById('today-todos');
+      if (todos.length === 0) {
+        tdBox.innerHTML = '<div class="empty-state">All done for today 🌸<br/><small>Tap + to add a task</small></div>';
+      } else {
+        tdBox.innerHTML = todos.slice(0, 6).map(td => `
+          <div class="todo-item${td.done ? ' done' : ''}">
+            <button class="todo-check" onclick="toggleTodo('${td.id}')">${ICONS.check}</button>
+            <div class="todo-content">
+              <div class="todo-title">${escapeHtml(td.title)}</div>
+              <div class="todo-meta">
+                ${td.priority ? `<span class="todo-priority ${td.priority}">${td.priority}</span>` : ''}
+                ${td.carriedOver ? `<span>↪ carried over</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // today habits
+      const habitsBox = document.getElementById('today-habits');
+      if (habits.length === 0) {
+        habitsBox.innerHTML = '<div class="empty-state">No habits yet 🌱<br/><small>Plant your first habit in the Habits page.</small></div>';
+      } else {
+        habitsBox.innerHTML = habits.slice(0, 5).map(h => {
+          const done = h.checks && h.checks[t];
+          return `<div class="todo-item${done ? ' done' : ''}">
+            <button class="todo-check" onclick="toggleHabit('${h.id}')">${ICONS.check}</button>
+            <div class="todo-content">
+              <div class="todo-title">${h.icon || '🌱'} ${escapeHtml(h.name)}</div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      // today mood
+      const moodBox = document.getElementById('today-mood');
+      const MOOD_EMOJIS = { 1:'😢', 2:'😠', 3:'😐', 4:'🙂', 5:'🥰' };
+      const MOOD_LABELS = { 1:'Sad', 2:'Angry', 3:'Meh', 4:'Happy', 5:'Joyful' };
+      if (todayMood) {
+        moodBox.innerHTML = `<div style="text-align:center; padding:14px;">
+          <div style="font-size:3rem;">${MOOD_EMOJIS[todayMood.mood]}</div>
+          <div style="font-family:var(--font-display); font-size:1.2rem; margin-top:4px;">${MOOD_LABELS[todayMood.mood]}</div>
+          ${todayMood.note ? `<div class="text-muted mt-1" style="font-style:italic;">"${escapeHtml(todayMood.note)}"</div>` : ''}
+          <a href="mood.html" class="btn btn-ghost btn-sm mt-1">Update</a>
+        </div>`;
+      } else {
+        moodBox.innerHTML = `<div style="text-align:center; padding:14px;">
+          <div class="text-muted" style="margin-bottom:10px;">How are you today?</div>
+          <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+            ${[1,2,3,4,5].map(v => `<button class="btn btn-ghost" style="font-size:1.6rem; padding:6px 10px;" onclick="quickMood(${v})">${MOOD_EMOJIS[v]}</button>`).join('')}
+          </div>
+        </div>`;
+      }
+
+      // Year so far stats
+      const year = new Date().getFullYear();
+      const yearStart = year + '-01-01';
+      const tasksDone = BLOOM.getTodos().filter(x => x.done && (x.createdAt || 0) > new Date(yearStart).getTime()).length;
+      const moviesWatched = (BLOOM.getCollection('movies') || []).filter(x => x.status === 'watched' && (x.date || '').startsWith(year)).length;
+      const booksRead = (BLOOM.getCollection('books') || []).filter(x => x.status === 'read' && (x.finishedAt || 0) > new Date(yearStart).getTime()).length;
+      const diaryEntries = BLOOM.getDiary().filter(d => (d.date || '').startsWith(year)).length;
+      const moodCheckins = Object.keys(BLOOM.getMoods()).filter(k => k.startsWith(year)).length;
+      const habitDays = habits.reduce((s, h) => s + Object.keys(h.checks || {}).filter(k => k.startsWith(year)).length, 0);
+      const ideasCount = (BLOOM.getCollection('ideas') || []).filter(x => (x.createdAt||0) > new Date(yearStart).getTime()).length;
+      const goalsCount = (BLOOM.getCollection('goals') || []).length;
+      document.getElementById('year-stats').innerHTML = `
+        <div class="stat-card"><span class="stat-label">Tasks done</span><span class="stat-value">${tasksDone}</span><span class="stat-hint">in ${year}</span></div>
+        <div class="stat-card"><span class="stat-label">Habit days</span><span class="stat-value">${habitDays}</span><span class="stat-hint">check-ins</span></div>
+        <div class="stat-card"><span class="stat-label">Diary entries</span><span class="stat-value">${diaryEntries}</span><span class="stat-hint">moments captured</span></div>
+        <div class="stat-card"><span class="stat-label">Mood check-ins</span><span class="stat-value">${moodCheckins}</span><span class="stat-hint">days tracked</span></div>
+        <div class="stat-card"><span class="stat-label">Books read</span><span class="stat-value">${booksRead}</span><span class="stat-hint">stories absorbed</span></div>
+        <div class="stat-card"><span class="stat-label">Movies watched</span><span class="stat-value">${moviesWatched}</span><span class="stat-hint">stories witnessed</span></div>
+        <div class="stat-card"><span class="stat-label">Ideas captured</span><span class="stat-value">${ideasCount}</span><span class="stat-hint">sparks kept</span></div>
+        <div class="stat-card"><span class="stat-label">Goals set</span><span class="stat-value">${goalsCount}</span><span class="stat-hint">total</span></div>
+      `;
+
+      document.getElementById('garden-svg-wrap').innerHTML = GARDEN_SVG;
+    }
+    function toggleHabit(id) {
+      BLOOM.toggleHabitCheck(id, BLOOM.today());
+      refreshPage();
+    }
+    function quickMood(v) {
+      BLOOM.setMood(BLOOM.today(), { mood: v, note: '', tags: [] });
+      toast('Mood saved 💗', 'success');
+      refreshPage();
+    }
+    function toggleTodo(id) {
+      const all = BLOOM.getTodos();
+      const t = all.find(x => x.id === id);
+      if (!t) return;
+      BLOOM.updateTodo(id, { done: !t.done });
+      refreshPage();
+    }
+    window.refreshPage = refreshPage;
+    renderShell('dashboard');
+    refreshPage();
+  </script>
+</body>
+</html>

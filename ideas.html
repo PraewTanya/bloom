@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Ideas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>💡 Ideas</h1>
+          <div class="subtitle">A pastel board for sparks before they fly away.</div>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-secondary" onclick="spark()">✨ Spark prompt</button>
+          <button class="btn btn-primary" onclick="openEditor()">+ New idea</button>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input id="q" class="input" placeholder="Search ideas..." style="flex:1; min-width:220px;" oninput="render()">
+        <select id="f-view" class="select" onchange="render()" style="min-width:160px;">
+          <option value="active">Active</option>
+          <option value="pinned">Pinned only</option>
+          <option value="archived">Archived</option>
+          <option value="all">All</option>
+        </select>
+        <select id="f-tag" class="select" onchange="render()" style="min-width:160px;">
+          <option value="">All tags</option>
+        </select>
+      </div>
+
+      <div class="card" id="spark-card" style="display:none; background:linear-gradient(120deg, var(--blush-soft) 0%, var(--lavender-soft) 100%); border:none;">
+        <div class="card-title">✨ Spark for today</div>
+        <p id="spark-text" style="font-family:var(--font-display); font-size:1.1rem; margin:0;"></p>
+        <button class="btn btn-ghost btn-sm mt-1" onclick="document.getElementById('spark-card').style.display='none'">Hide</button>
+        <button class="btn btn-primary btn-sm mt-1" onclick="captureSpark()">Turn this into an idea</button>
+      </div>
+
+      <div id="board"></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="i-modal">
+    <div class="modal" style="max-width:520px;">
+      <h2 id="i-title">💡 New idea</h2>
+      <input type="hidden" id="i-id">
+      <div class="field"><label>Title</label><input id="f-title" class="input" placeholder="The spark..."></div>
+      <div class="field"><label>Description</label><textarea id="f-body" class="textarea" style="min-height:140px;" placeholder="Pour the thoughts out..."></textarea></div>
+      <div class="field"><label>Tags (comma-separated)</label><input id="f-tags" class="input" placeholder="business, creative, daily..."></div>
+      <div class="field">
+        <label>Color</label>
+        <div class="color-picker" id="f-color"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="i-del" onclick="del()">Delete</button>
+        <button class="btn btn-ghost" onclick="close_()">Cancel</button>
+        <button class="btn btn-primary" onclick="save()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS = 'ideas';
+    const COLORS = ['#FCE4EC','#FFEFD9','#ECE0F0','#E4F2E4','#FFF6E5','#FFD8B1','#C8E6C9','#FCC8B0'];
+    const SPARKS = [
+      "What's one thing you'd do if you knew you couldn't fail?",
+      "What would your 80-year-old self thank you for starting today?",
+      "If money wasn't a worry, what would you spend the next month creating?",
+      "What did you love doing at 10 that you've forgotten about?",
+      "What problem would you happily work on for free?",
+      "What would you build if you had a whole year and a tiny team?",
+      "What conversation do you keep wishing existed?",
+      "What rule would you break if no one was watching?",
+      "What does your dream Tuesday morning look like?",
+      "What's missing from the world that only you would notice?",
+      "Who do you want to write a letter to? What would it say?",
+      "What's a skill you'd love to learn just for the joy of it?",
+      "What story haven't you told anyone yet?"
+    ];
+    let pickedColor = COLORS[0];
+
+    function buildColorPicker() {
+      const c = document.getElementById('f-color');
+      c.innerHTML = COLORS.map(col => `<button type="button" style="background:${col};" data-c="${col}" onclick="pickColor('${col}')" class="${col===pickedColor?'selected':''}"></button>`).join('');
+    }
+    function pickColor(c) {
+      pickedColor = c;
+      document.querySelectorAll('#f-color button').forEach(b => b.classList.toggle('selected', b.dataset.c === c));
+    }
+
+    function spark() {
+      const i = Math.floor(Math.random() * SPARKS.length);
+      document.getElementById('spark-text').textContent = SPARKS[i];
+      document.getElementById('spark-card').style.display = 'block';
+    }
+    function captureSpark() {
+      openEditor();
+      document.getElementById('f-body').value = document.getElementById('spark-text').textContent;
+      document.getElementById('f-title').focus();
+    }
+
+    function render() {
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      const view = document.getElementById('f-view').value;
+      const tagFilter = document.getElementById('f-tag').value;
+      let items = BLOOM.getCollection(NS);
+
+      // tag options
+      const tagSel = document.getElementById('f-tag');
+      const cur = tagSel.value;
+      const allTags = [...new Set(items.flatMap(x => x.tags || []))].sort();
+      tagSel.innerHTML = '<option value="">All tags</option>' + allTags.map(t => `<option value="${escapeHtml(t)}" ${t===cur?'selected':''}>${escapeHtml(t)}</option>`).join('');
+
+      if (view === 'active') items = items.filter(x => !x.archived);
+      else if (view === 'pinned') items = items.filter(x => x.pinned && !x.archived);
+      else if (view === 'archived') items = items.filter(x => x.archived);
+      if (tagFilter) items = items.filter(x => (x.tags || []).includes(tagFilter));
+      if (q) items = items.filter(x =>
+        (x.title || '').toLowerCase().includes(q) ||
+        (x.body || '').toLowerCase().includes(q) ||
+        (x.tags || []).join(' ').toLowerCase().includes(q));
+      items.sort((a,b) => (b.pinned?1:0)-(a.pinned?1:0) || (b.createdAt||0)-(a.createdAt||0));
+
+      const box = document.getElementById('board');
+      if (items.length === 0) {
+        box.innerHTML = '<div class="card empty-state">💡<br/>No ideas yet. Try "Spark prompt" above, or type one in.</div>';
+        return;
+      }
+      box.innerHTML = '<div class="sticky-board">' + items.map(x => `
+        <div class="sticky ${x.pinned?'pinned':''} ${x.archived?'archived':''}" style="background:${x.color || COLORS[0]};" onclick="if(!event.target.closest('.sticky-actions')) openEditor('${x.id}')">
+          ${x.pinned ? '<div class="pin-badge">📌</div>' : ''}
+          <div class="sticky-actions">
+            <button onclick="event.stopPropagation(); togglePin('${x.id}')" title="${x.pinned?'Unpin':'Pin'}">${x.pinned ? '📌' : '📍'}</button>
+            <button onclick="event.stopPropagation(); toggleArchive('${x.id}')" title="${x.archived?'Unarchive':'Archive'}">${x.archived ? '📤' : '📥'}</button>
+          </div>
+          ${x.title ? `<div class="sticky-title">${escapeHtml(x.title)}</div>` : ''}
+          <div class="sticky-body">${escapeHtml(x.body || '')}</div>
+          ${(x.tags||[]).length ? `<div class="sticky-meta">${(x.tags||[]).map(t => `<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+        </div>
+      `).join('') + '</div>';
+    }
+
+    function togglePin(id) {
+      const x = BLOOM.getCollection(NS).find(i=>i.id===id);
+      if (!x) return;
+      BLOOM.updateInCollection(NS, id, { pinned: !x.pinned });
+      render();
+    }
+    function toggleArchive(id) {
+      const x = BLOOM.getCollection(NS).find(i=>i.id===id);
+      if (!x) return;
+      BLOOM.updateInCollection(NS, id, { archived: !x.archived });
+      render();
+    }
+
+    function openEditor(id) {
+      const x = id ? BLOOM.getCollection(NS).find(i=>i.id===id) : null;
+      document.getElementById('i-title').textContent = x ? '✏️ Edit idea' : '💡 New idea';
+      document.getElementById('i-id').value = x ? x.id : '';
+      document.getElementById('f-title').value = x ? (x.title || '') : '';
+      document.getElementById('f-body').value = x ? (x.body || '') : '';
+      document.getElementById('f-tags').value = x ? (x.tags || []).join(', ') : '';
+      pickedColor = x ? (x.color || COLORS[0]) : COLORS[Math.floor(Math.random()*COLORS.length)];
+      buildColorPicker();
+      document.getElementById('i-del').classList.toggle('hidden', !x);
+      document.getElementById('i-modal').classList.add('open');
+      setTimeout(() => document.getElementById('f-title').focus(), 60);
+    }
+    function close_() { document.getElementById('i-modal').classList.remove('open'); }
+    function save() {
+      const id = document.getElementById('i-id').value;
+      const data = {
+        title: document.getElementById('f-title').value.trim(),
+        body: document.getElementById('f-body').value,
+        tags: document.getElementById('f-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
+        color: pickedColor
+      };
+      if (!data.title && !data.body) return toast('Write something first 🌱');
+      if (id) { BLOOM.updateInCollection(NS, id, data); toast('Updated 🌿', 'success'); }
+      else { BLOOM.addToCollection(NS, data); toast('Idea captured 💡', 'success'); }
+      close_();
+      render();
+    }
+    function del() {
+      const id = document.getElementById('i-id').value;
+      if (id && confirm('Delete this idea?')) { BLOOM.deleteFromCollection(NS, id); close_(); toast('Removed 🌿'); render(); }
+    }
+    document.getElementById('i-modal').addEventListener('click', (e) => { if (e.target.id === 'i-modal') close_(); });
+
+    window.refreshPage = render;
+    renderShell('ideas');
+    render();
+  </script>
+</body>
+</html>

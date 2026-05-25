@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Creator Hub</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>🎥 Creator Hub</h1>
+          <div class="subtitle">A calm studio for everything you make and share.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEditor()">+ New post</button>
+      </div>
+
+      <div class="grid grid-4" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <span class="stat-label">In progress</span>
+          <span class="stat-value" id="stat-prog">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Scheduled</span>
+          <span class="stat-value" id="stat-sched">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Published this month</span>
+          <span class="stat-value" id="stat-pub">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Total reach (manual)</span>
+          <span class="stat-value" id="stat-reach">0</span>
+          <span class="stat-hint">Sum of views logged</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input id="q" class="input" placeholder="Search caption, title, tags..." style="flex:1; min-width:220px;" oninput="render()">
+        <select id="f-platform" class="select" onchange="render()" style="min-width:160px;">
+          <option value="">All platforms</option>
+          <option value="ig">Instagram</option>
+          <option value="tiktok">TikTok</option>
+          <option value="youtube">YouTube</option>
+          <option value="blog">Blog</option>
+          <option value="other">Other</option>
+        </select>
+        <select id="f-series" class="select" onchange="render()" style="min-width:160px;">
+          <option value="">All series</option>
+        </select>
+      </div>
+
+      <div class="pipeline" id="pipeline"></div>
+
+      <div class="card mt-2">
+        <div class="card-title">📅 Upcoming scheduled posts</div>
+        <div id="upcoming"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Editor modal -->
+  <div class="modal-backdrop" id="c-modal">
+    <div class="modal" style="max-width:600px;">
+      <h2 id="c-title">🎥 New post</h2>
+      <input type="hidden" id="c-id">
+      <div class="row">
+        <div class="field" style="flex:2;"><label>Title / hook</label><input id="f-title" class="input"></div>
+        <div class="field" style="flex:1;">
+          <label>Platform</label>
+          <select id="f-platform-edit" class="select">
+            <option value="ig">Instagram</option>
+            <option value="tiktok">TikTok</option>
+            <option value="youtube">YouTube</option>
+            <option value="blog">Blog</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Stage</label>
+          <select id="f-stage" class="select">
+            <option value="idea">Idea</option>
+            <option value="scripting">Scripting</option>
+            <option value="filming">Filming</option>
+            <option value="editing">Editing</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="published">Published</option>
+          </select>
+        </div>
+        <div class="field"><label>Scheduled / publish date</label><input id="f-date" class="input" type="datetime-local"></div>
+      </div>
+      <div class="field"><label>Series (optional)</label><input id="f-series-edit" class="input" placeholder="e.g., 'Morning rituals'"></div>
+      <div class="field"><label>Caption draft</label><textarea id="f-caption" class="textarea" style="min-height:100px;"></textarea></div>
+      <div class="field"><label>Hashtags (space or comma-separated)</label><input id="f-tags" class="input" placeholder="#bloom #routine #softlife"></div>
+      <div class="field"><label>Media references / shot list</label><textarea id="f-media" class="textarea" style="min-height:70px;" placeholder="What footage you need, links to b-roll, etc."></textarea></div>
+      <div id="metrics-fields" style="display:none;">
+        <h3 style="font-family:var(--font-display); font-size:1.05rem; margin-top:14px;">📊 Metrics (after publishing)</h3>
+        <div class="row">
+          <div class="field"><label>Views</label><input id="f-views" class="input" type="number" min="0"></div>
+          <div class="field"><label>Likes</label><input id="f-likes" class="input" type="number" min="0"></div>
+          <div class="field"><label>Saves</label><input id="f-saves" class="input" type="number" min="0"></div>
+          <div class="field"><label>Comments</label><input id="f-comments" class="input" type="number" min="0"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="c-del" onclick="del()">Delete</button>
+        <button class="btn btn-ghost" onclick="close_()">Cancel</button>
+        <button class="btn btn-primary" onclick="save()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS = 'content';
+    const STAGES = ['idea','scripting','filming','editing','scheduled','published'];
+    const STAGE_LABELS = { idea:'💭 Idea', scripting:'✍️ Scripting', filming:'🎥 Filming', editing:'✂️ Editing', scheduled:'📅 Scheduled', published:'🌸 Published' };
+    const PLATFORM_LABELS = { ig:'📷 IG', tiktok:'🎵 TikTok', youtube:'▶ YouTube', blog:'📝 Blog', other:'🌿 Other' };
+    const PLATFORM_CLASS = { ig:'plat-ig', tiktok:'plat-tiktok', youtube:'plat-youtube', blog:'plat-blog', other:'plat-other' };
+
+    document.getElementById('f-stage').addEventListener('change', (e) => {
+      document.getElementById('metrics-fields').style.display = e.target.value === 'published' ? 'block' : 'none';
+    });
+
+    function render() {
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      const fp = document.getElementById('f-platform').value;
+      const fs = document.getElementById('f-series').value;
+      let items = BLOOM.getCollection(NS);
+
+      // series options
+      const series = [...new Set(items.map(x => x.series).filter(Boolean))].sort();
+      const seriesSel = document.getElementById('f-series');
+      const cur = seriesSel.value;
+      seriesSel.innerHTML = '<option value="">All series</option>' + series.map(s => `<option value="${escapeHtml(s)}" ${s===cur?'selected':''}>${escapeHtml(s)}</option>`).join('');
+
+      // stats
+      const now = new Date();
+      const thisMonth = now.getFullYear() + '-' + (now.getMonth()+1).toString().padStart(2,'0');
+      document.getElementById('stat-prog').textContent = items.filter(x => ['scripting','filming','editing'].includes(x.stage)).length;
+      document.getElementById('stat-sched').textContent = items.filter(x => x.stage === 'scheduled').length;
+      document.getElementById('stat-pub').textContent = items.filter(x => x.stage === 'published' && (x.date || '').startsWith(thisMonth)).length;
+      document.getElementById('stat-reach').textContent = items.reduce((s,x) => s + (x.views || 0), 0).toLocaleString();
+
+      // filter
+      if (fp) items = items.filter(x => x.platform === fp);
+      if (fs) items = items.filter(x => x.series === fs);
+      if (q) items = items.filter(x =>
+        (x.title || '').toLowerCase().includes(q) ||
+        (x.caption || '').toLowerCase().includes(q) ||
+        (x.tags || '').toLowerCase().includes(q));
+
+      // pipeline columns
+      const pl = document.getElementById('pipeline');
+      pl.innerHTML = STAGES.map(stage => {
+        const cards = items.filter(x => x.stage === stage).sort((a,b) => (b.createdAt||0)-(a.createdAt||0));
+        return `<div class="pipeline-col">
+          <h4>${STAGE_LABELS[stage]} <span class="text-muted" style="font-size:0.78rem; font-weight:600;">${cards.length}</span></h4>
+          ${cards.length === 0 ? '<div class="text-muted" style="font-size:0.78rem; font-style:italic; padding:6px;">Empty</div>' : cards.map(c => `
+            <div class="pipeline-card" onclick="openEditor('${c.id}')">
+              <div class="pl-ttl">${escapeHtml(c.title || '(untitled)')}</div>
+              <div class="pl-meta">
+                <span class="platform-chip ${PLATFORM_CLASS[c.platform] || 'plat-other'}">${PLATFORM_LABELS[c.platform] || '🌿'}</span>
+                ${c.date ? `<span>🗓 ${fmtDateShort((c.date||'').slice(0,10))}</span>` : ''}
+                ${c.series ? `<span>📚 ${escapeHtml(c.series)}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>`;
+      }).join('');
+
+      // upcoming
+      const upcoming = items.filter(x => x.stage === 'scheduled' && x.date)
+        .sort((a,b) => (a.date||'').localeCompare(b.date||''))
+        .slice(0, 10);
+      const upBox = document.getElementById('upcoming');
+      if (upcoming.length === 0) {
+        upBox.innerHTML = '<div class="empty-state">Nothing scheduled yet 🌿</div>';
+      } else {
+        upBox.innerHTML = upcoming.map(c => {
+          const date = c.date ? new Date(c.date) : null;
+          const days = date ? Math.ceil((date - new Date()) / 86400000) : null;
+          return `<div class="todo-item" onclick="openEditor('${c.id}')" style="cursor:pointer;">
+            <span class="chip">${days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days > 0 ? 'in ' + days + 'd' : (-days)+'d ago'}</span>
+            <div class="todo-content">
+              <div class="todo-title">${escapeHtml(c.title || '(untitled)')}</div>
+              <div class="todo-meta">
+                <span class="platform-chip ${PLATFORM_CLASS[c.platform] || 'plat-other'}">${PLATFORM_LABELS[c.platform] || '🌿'}</span>
+                <span>🗓 ${(c.date||'').replace('T',' ').slice(0,16)}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    function openEditor(id) {
+      const x = id ? BLOOM.getCollection(NS).find(i=>i.id===id) : null;
+      document.getElementById('c-title').textContent = x ? '✏️ Edit post' : '🎥 New post';
+      document.getElementById('c-id').value = x ? x.id : '';
+      document.getElementById('f-title').value = x ? (x.title || '') : '';
+      document.getElementById('f-platform-edit').value = x ? (x.platform || 'ig') : 'ig';
+      document.getElementById('f-stage').value = x ? (x.stage || 'idea') : 'idea';
+      document.getElementById('f-date').value = x ? (x.date || '') : '';
+      document.getElementById('f-series-edit').value = x ? (x.series || '') : '';
+      document.getElementById('f-caption').value = x ? (x.caption || '') : '';
+      document.getElementById('f-tags').value = x ? (x.tags || '') : '';
+      document.getElementById('f-media').value = x ? (x.media || '') : '';
+      document.getElementById('f-views').value = x ? (x.views || '') : '';
+      document.getElementById('f-likes').value = x ? (x.likes || '') : '';
+      document.getElementById('f-saves').value = x ? (x.saves || '') : '';
+      document.getElementById('f-comments').value = x ? (x.comments || '') : '';
+      document.getElementById('metrics-fields').style.display = (x?.stage === 'published') ? 'block' : 'none';
+      document.getElementById('c-del').classList.toggle('hidden', !x);
+      document.getElementById('c-modal').classList.add('open');
+      setTimeout(() => document.getElementById('f-title').focus(), 60);
+    }
+    function close_() { document.getElementById('c-modal').classList.remove('open'); }
+    function save() {
+      const id = document.getElementById('c-id').value;
+      const data = {
+        title: document.getElementById('f-title').value.trim(),
+        platform: document.getElementById('f-platform-edit').value,
+        stage: document.getElementById('f-stage').value,
+        date: document.getElementById('f-date').value || null,
+        series: document.getElementById('f-series-edit').value.trim(),
+        caption: document.getElementById('f-caption').value,
+        tags: document.getElementById('f-tags').value,
+        media: document.getElementById('f-media').value,
+        views: parseInt(document.getElementById('f-views').value || '0', 10) || 0,
+        likes: parseInt(document.getElementById('f-likes').value || '0', 10) || 0,
+        saves: parseInt(document.getElementById('f-saves').value || '0', 10) || 0,
+        comments: parseInt(document.getElementById('f-comments').value || '0', 10) || 0
+      };
+      if (!data.title) return toast('Please add a title 🌱');
+      if (id) { BLOOM.updateInCollection(NS, id, data); toast('Updated 🌿', 'success'); }
+      else { BLOOM.addToCollection(NS, data); toast('Post added 🎥', 'success'); }
+      close_();
+      render();
+    }
+    function del() {
+      const id = document.getElementById('c-id').value;
+      if (id && confirm('Delete this post?')) { BLOOM.deleteFromCollection(NS, id); close_(); toast('Removed 🌿'); render(); }
+    }
+    document.getElementById('c-modal').addEventListener('click', (e) => { if (e.target.id === 'c-modal') close_(); });
+
+    window.refreshPage = render;
+    renderShell('creator');
+    render();
+  </script>
+</body>
+</html>

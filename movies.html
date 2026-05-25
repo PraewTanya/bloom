@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Movies</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>🎬 Movies</h1>
+          <div class="subtitle">Every story you let into your heart.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEditor()">+ Add movie</button>
+      </div>
+
+      <div class="grid grid-4" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <span class="stat-label">Watched this year</span>
+          <span class="stat-value" id="stat-year">0</span>
+          <span class="stat-hint">Stories enjoyed</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Currently watching</span>
+          <span class="stat-value" id="stat-watching">0</span>
+          <span class="stat-hint">In progress</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Want to watch</span>
+          <span class="stat-value" id="stat-want">0</span>
+          <span class="stat-hint">On your list</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Average rating</span>
+          <span class="stat-value" id="stat-avg">—</span>
+          <span class="stat-hint">From watched</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input id="q" class="input" placeholder="Search title, genre, review..." style="flex:1; min-width:220px;" oninput="render()">
+        <select id="f-status" class="select" onchange="render()" style="min-width:160px;">
+          <option value="">All statuses</option>
+          <option value="watched">Watched</option>
+          <option value="watching">Watching</option>
+          <option value="want">Want to watch</option>
+        </select>
+        <select id="f-sort" class="select" onchange="render()" style="min-width:160px;">
+          <option value="recent">Recently added</option>
+          <option value="rating">Top rated</option>
+          <option value="title">Title A→Z</option>
+          <option value="year">Year (newest)</option>
+        </select>
+      </div>
+
+      <div id="grid"></div>
+    </main>
+  </div>
+
+  <!-- Editor modal -->
+  <div class="modal-backdrop" id="m-modal">
+    <div class="modal" style="max-width:560px;">
+      <h2 id="m-title">🎬 Add movie</h2>
+      <input type="hidden" id="m-id">
+      <div class="row">
+        <div class="field" style="flex:2;"><label>Title</label><input id="f-title" class="input" placeholder="Movie title..."></div>
+        <div class="field" style="flex:1;"><label>Year</label><input id="f-year" class="input" type="number" placeholder="2024"></div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Status</label>
+          <select id="f-st" class="select">
+            <option value="want">Want to watch</option>
+            <option value="watching">Watching</option>
+            <option value="watched">Watched</option>
+          </select>
+        </div>
+        <div class="field"><label>Date watched</label><input id="f-date" class="input" type="date"></div>
+      </div>
+      <div class="field">
+        <label>Genre tags (comma-separated)</label>
+        <input id="f-genre" class="input" placeholder="drama, romance, sci-fi...">
+      </div>
+      <div class="field">
+        <label>Rating</label>
+        <div class="rating-stars" id="f-rating"></div>
+      </div>
+      <div class="field">
+        <label>Poster image</label>
+        <div id="img-pic"></div>
+      </div>
+      <div class="field">
+        <label>Review / personal notes</label>
+        <textarea id="f-review" class="textarea" placeholder="What did you think? What did it make you feel?"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="m-del" onclick="del()">Delete</button>
+        <button class="btn btn-ghost" onclick="close_()">Cancel</button>
+        <button class="btn btn-primary" onclick="save()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS = 'movies';
+    let rating = 0;
+
+    function renderStars(into, value, interactive) {
+      let html = '';
+      for (let i=1;i<=5;i++) html += `<button type="button" class="${i<=value?'on':''}" onclick="${interactive?`pickRating(${i})`:''}">★</button>`;
+      into.innerHTML = html;
+    }
+    function pickRating(v) { rating = (rating === v) ? 0 : v; renderStars(document.getElementById('f-rating'), rating, true); }
+
+    function statusLabel(s) { return s === 'watched' ? 'Watched' : s === 'watching' ? 'Watching' : 'Want to watch'; }
+    function statusClass(s) { return s === 'watched' ? 'status-watched' : s === 'watching' ? 'status-watching' : 'status-want-to-watch'; }
+
+    async function render() {
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      const fs = document.getElementById('f-status').value;
+      const sort = document.getElementById('f-sort').value;
+      let items = BLOOM.getCollection(NS);
+
+      // stats
+      const year = new Date().getFullYear();
+      document.getElementById('stat-year').textContent = items.filter(x => x.status === 'watched' && (x.date || '').startsWith(year)).length;
+      document.getElementById('stat-watching').textContent = items.filter(x => x.status === 'watching').length;
+      document.getElementById('stat-want').textContent = items.filter(x => x.status === 'want').length;
+      const rated = items.filter(x => x.status === 'watched' && x.rating);
+      document.getElementById('stat-avg').textContent = rated.length ? (rated.reduce((s,x)=>s+x.rating,0) / rated.length).toFixed(1) + '★' : '—';
+
+      // filter
+      if (fs) items = items.filter(x => x.status === fs);
+      if (q) items = items.filter(x =>
+        (x.title || '').toLowerCase().includes(q) ||
+        (x.review || '').toLowerCase().includes(q) ||
+        (x.genre || []).join(' ').toLowerCase().includes(q));
+      // sort
+      if (sort === 'recent') items.sort((a,b) => (b.createdAt||0)-(a.createdAt||0));
+      else if (sort === 'rating') items.sort((a,b) => (b.rating||0)-(a.rating||0));
+      else if (sort === 'title') items.sort((a,b) => (a.title||'').localeCompare(b.title||''));
+      else if (sort === 'year') items.sort((a,b) => (b.year||0)-(a.year||0));
+
+      const box = document.getElementById('grid');
+      if (items.length === 0) {
+        box.innerHTML = '<div class="card empty-state">🎬<br/>No movies yet. Add one you watched or want to watch.</div>';
+        return;
+      }
+      box.innerHTML = '<div class="lib-grid">' + items.map(x => `
+        <div class="lib-card" onclick="openEditor('${x.id}')">
+          ${x.poster ? `<img class="lib-thumb" alt="" data-img-src="${escapeHtml(x.poster)}" data-img-fallback="<div class=&quot;lib-thumb&quot;>🎬</div>" onerror="this.outerHTML='<div class=&quot;lib-thumb&quot;>🎬</div>'">` : `<div class="lib-thumb">🎬</div>`}
+          <div class="lib-body">
+            <div class="lib-title">${escapeHtml(x.title || '(untitled)')}</div>
+            <div class="lib-sub">${x.year || ''}${x.year && (x.genre||[]).length ? ' · ' : ''}${(x.genre||[]).slice(0,2).join(', ')}</div>
+            ${x.rating ? `<div class="lib-rating">${'★'.repeat(x.rating)}${'☆'.repeat(5-x.rating)}</div>` : ''}
+            <div class="lib-meta">
+              <span class="status-chip ${statusClass(x.status)}">${statusLabel(x.status)}</span>
+            </div>
+          </div>
+        </div>
+      `).join('') + '</div>';
+      await resolveAllImages();
+    }
+
+    async function openEditor(id) {
+      const x = id ? BLOOM.getCollection(NS).find(i=>i.id===id) : null;
+      document.getElementById('m-title').textContent = x ? '✏️ Edit movie' : '🎬 Add movie';
+      document.getElementById('m-id').value = x ? x.id : '';
+      document.getElementById('f-title').value = x ? (x.title || '') : '';
+      document.getElementById('f-year').value = x ? (x.year || '') : '';
+      document.getElementById('f-st').value = x ? (x.status || 'want') : 'want';
+      document.getElementById('f-date').value = x ? (x.date || '') : '';
+      document.getElementById('f-genre').value = x ? (x.genre || []).join(', ') : '';
+      await ImagePicker.init('img-pic', x ? (x.poster || '') : '');
+      document.getElementById('f-review').value = x ? (x.review || '') : '';
+      rating = x ? (x.rating || 0) : 0;
+      renderStars(document.getElementById('f-rating'), rating, true);
+      document.getElementById('m-del').classList.toggle('hidden', !x);
+      document.getElementById('m-modal').classList.add('open');
+      setTimeout(() => document.getElementById('f-title').focus(), 60);
+    }
+    function close_() { document.getElementById('m-modal').classList.remove('open'); }
+    function save() {
+      const id = document.getElementById('m-id').value;
+      const data = {
+        title: document.getElementById('f-title').value.trim(),
+        year: parseInt(document.getElementById('f-year').value || '0', 10) || null,
+        status: document.getElementById('f-st').value,
+        date: document.getElementById('f-date').value || null,
+        genre: document.getElementById('f-genre').value.split(',').map(t=>t.trim()).filter(Boolean),
+        poster: ImagePicker.get('img-pic'),
+        review: document.getElementById('f-review').value,
+        rating
+      };
+      if (!data.title) return toast('Please add a title 🌱');
+      if (id) { BLOOM.updateInCollection(NS, id, data); toast('Updated 🌿', 'success'); }
+      else { BLOOM.addToCollection(NS, data); toast('Movie added 🎬', 'success'); }
+      close_();
+      render();
+    }
+    async function del() {
+      const id = document.getElementById('m-id').value;
+      if (id && confirm('Delete this movie?')) {
+        const x = BLOOM.getCollection(NS).find(i=>i.id===id);
+        if (x) await maybeDeleteLocalImage(x.poster);
+        BLOOM.deleteFromCollection(NS, id); close_(); toast('Removed 🌿'); render();
+      }
+    }
+    document.getElementById('m-modal').addEventListener('click', (e) => { if (e.target.id === 'm-modal') close_(); });
+
+    window.refreshPage = render;
+    renderShell('movies');
+    render();
+  </script>
+</body>
+</html>

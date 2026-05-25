@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Wishlist</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .price-tag { font-family: var(--font-display); font-size: 1.2rem; color: var(--rose); font-weight: 700; }
+    .pri-high { background: #FFD7D7; color: #B5535B; }
+    .pri-medium { background: var(--peach-soft); color: #A06820; }
+    .pri-low { background: var(--sage-soft); color: #4A7E50; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>🛍️ Wishlist</h1>
+          <div class="subtitle">Things you adore — to remember, to consider, to keep or to let go.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEditor()">+ Add item</button>
+      </div>
+
+      <div class="grid grid-3" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <span class="stat-label">Still wishing</span>
+          <span class="stat-value" id="stat-wishing">0</span>
+          <span class="stat-hint" id="stat-wishing-total">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Bought</span>
+          <span class="stat-value" id="stat-bought">0</span>
+          <span class="stat-hint" id="stat-bought-total">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Mindfully skipped</span>
+          <span class="stat-value" id="stat-skipped">0</span>
+          <span class="stat-hint" id="stat-skipped-total">Saved by passing</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input id="q" class="input" placeholder="Search..." style="flex:1; min-width:220px;" oninput="render()">
+        <select id="f-status" class="select" onchange="render()" style="min-width:160px;">
+          <option value="">All statuses</option>
+          <option value="wishing">Wishing</option>
+          <option value="bought">Bought</option>
+          <option value="skipped">Skipped</option>
+        </select>
+        <select id="f-sort" class="select" onchange="render()" style="min-width:160px;">
+          <option value="recent">Recently added</option>
+          <option value="price-h">Price: high → low</option>
+          <option value="price-l">Price: low → high</option>
+          <option value="priority">By priority</option>
+        </select>
+      </div>
+
+      <div id="grid"></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="w-modal">
+    <div class="modal" style="max-width:560px;">
+      <h2 id="w-title">🛍️ Add to wishlist</h2>
+      <input type="hidden" id="w-id">
+      <div class="field"><label>Name</label><input id="f-name" class="input" placeholder="What is it?"></div>
+      <div class="row">
+        <div class="field">
+          <label>Price</label>
+          <input id="f-price" class="input" type="number" step="0.01" min="0" placeholder="0.00">
+        </div>
+        <div class="field">
+          <label>Currency</label>
+          <select id="f-cur" class="select"></select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Status</label>
+          <select id="f-st" class="select">
+            <option value="wishing">Wishing</option>
+            <option value="bought">Bought</option>
+            <option value="skipped">Skipped</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Priority</label>
+          <select id="f-pri" class="select">
+            <option value="">—</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Image</label><div id="img-pic"></div></div>
+      <div class="field"><label>Link to product (optional)</label><input id="f-link" class="input" placeholder="https://..."></div>
+      <div class="field"><label>Why I want this</label><textarea id="f-note" class="textarea" placeholder="A thoughtful pause before buying..."></textarea></div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="w-del" onclick="del()">Delete</button>
+        <button class="btn btn-ghost" onclick="close_()">Cancel</button>
+        <button class="btn btn-primary" onclick="save()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS = 'wishlist';
+    const CURRENCY_SYMBOLS = { THB: '฿', USD: '$', EUR: '€', JPY: '¥', GBP: '£' };
+    function curSymbol(c) { return CURRENCY_SYMBOLS[c] || c || ''; }
+
+    function statusLabel(s) { return s === 'bought' ? 'Bought' : s === 'skipped' ? 'Skipped' : 'Wishing'; }
+    function statusClass(s) { return s === 'bought' ? 'status-bought' : s === 'skipped' ? 'status-skipped' : 'status-wishing'; }
+
+    function buildCurrencySelect() {
+      const sel = document.getElementById('f-cur');
+      const def = BLOOM.getSettings().currency || 'THB';
+      sel.innerHTML = ['THB','USD','EUR','JPY','GBP'].map(c => `<option value="${c}" ${c===def?'selected':''}>${c} ${curSymbol(c)}</option>`).join('');
+    }
+
+    async function render() {
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      const fs = document.getElementById('f-status').value;
+      const sort = document.getElementById('f-sort').value;
+      let items = BLOOM.getCollection(NS);
+
+      // stats
+      const wish = items.filter(x => x.status === 'wishing');
+      const bought = items.filter(x => x.status === 'bought');
+      const skipped = items.filter(x => x.status === 'skipped');
+      document.getElementById('stat-wishing').textContent = wish.length;
+      document.getElementById('stat-bought').textContent = bought.length;
+      document.getElementById('stat-skipped').textContent = skipped.length;
+      const fmtTotal = arr => {
+        const by = {};
+        arr.forEach(x => { const c = x.currency || 'THB'; by[c] = (by[c]||0) + (x.price||0); });
+        return Object.entries(by).map(([c,v]) => `${curSymbol(c)}${v.toLocaleString()}`).join(' · ') || '—';
+      };
+      document.getElementById('stat-wishing-total').textContent = 'Total: ' + fmtTotal(wish);
+      document.getElementById('stat-bought-total').textContent = 'Total: ' + fmtTotal(bought);
+      document.getElementById('stat-skipped-total').textContent = 'Saved: ' + fmtTotal(skipped);
+
+      if (fs) items = items.filter(x => x.status === fs);
+      if (q) items = items.filter(x =>
+        (x.name || '').toLowerCase().includes(q) ||
+        (x.note || '').toLowerCase().includes(q));
+      const priOrder = { high: 0, medium: 1, low: 2, '': 3 };
+      if (sort === 'recent') items.sort((a,b) => (b.createdAt||0)-(a.createdAt||0));
+      else if (sort === 'price-h') items.sort((a,b) => (b.price||0)-(a.price||0));
+      else if (sort === 'price-l') items.sort((a,b) => (a.price||0)-(b.price||0));
+      else if (sort === 'priority') items.sort((a,b) => (priOrder[a.priority||''] - priOrder[b.priority||'']));
+
+      const box = document.getElementById('grid');
+      if (items.length === 0) {
+        box.innerHTML = '<div class="card empty-state">🛍️<br/>Nothing on your wishlist yet.</div>';
+        return;
+      }
+      box.innerHTML = '<div class="lib-grid">' + items.map(x => `
+        <div class="lib-card" onclick="openEditor('${x.id}')">
+          ${x.image ? `<img class="lib-thumb thumb-square" alt="" data-img-src="${escapeHtml(x.image)}" onerror="this.outerHTML='<div class=&quot;lib-thumb thumb-square&quot;>🎁</div>'">` : `<div class="lib-thumb thumb-square">🎁</div>`}
+          <div class="lib-body">
+            <div class="lib-title">${escapeHtml(x.name || '(untitled)')}</div>
+            ${x.price ? `<div class="price-tag">${curSymbol(x.currency)}${x.price.toLocaleString()}</div>` : ''}
+            ${x.note ? `<div class="lib-sub" style="font-style:italic; -webkit-line-clamp:2; display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden;">"${escapeHtml(x.note)}"</div>` : ''}
+            <div class="lib-meta">
+              <span class="status-chip ${statusClass(x.status)}">${statusLabel(x.status)}</span>
+              ${x.priority ? `<span class="status-chip pri-${x.priority}">${x.priority}</span>` : ''}
+              ${x.link ? `<a href="${escapeHtml(x.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="status-chip" style="background:var(--lavender-soft); color:var(--ink-soft); text-transform:none;">↗ link</a>` : ''}
+            </div>
+          </div>
+        </div>
+      `).join('') + '</div>';
+      await resolveAllImages();
+    }
+
+    async function openEditor(id) {
+      buildCurrencySelect();
+      const x = id ? BLOOM.getCollection(NS).find(i=>i.id===id) : null;
+      document.getElementById('w-title').textContent = x ? '✏️ Edit item' : '🛍️ Add to wishlist';
+      document.getElementById('w-id').value = x ? x.id : '';
+      document.getElementById('f-name').value = x ? (x.name || '') : '';
+      document.getElementById('f-price').value = x ? (x.price || '') : '';
+      document.getElementById('f-cur').value = x ? (x.currency || BLOOM.getSettings().currency || 'THB') : (BLOOM.getSettings().currency || 'THB');
+      document.getElementById('f-st').value = x ? (x.status || 'wishing') : 'wishing';
+      document.getElementById('f-pri').value = x ? (x.priority || '') : '';
+      await ImagePicker.init('img-pic', x ? (x.image || '') : '');
+      document.getElementById('f-link').value = x ? (x.link || '') : '';
+      document.getElementById('f-note').value = x ? (x.note || '') : '';
+      document.getElementById('w-del').classList.toggle('hidden', !x);
+      document.getElementById('w-modal').classList.add('open');
+      setTimeout(() => document.getElementById('f-name').focus(), 60);
+    }
+    function close_() { document.getElementById('w-modal').classList.remove('open'); }
+    function save() {
+      const id = document.getElementById('w-id').value;
+      const data = {
+        name: document.getElementById('f-name').value.trim(),
+        price: parseFloat(document.getElementById('f-price').value) || 0,
+        currency: document.getElementById('f-cur').value,
+        status: document.getElementById('f-st').value,
+        priority: document.getElementById('f-pri').value,
+        image: ImagePicker.get('img-pic'),
+        link: document.getElementById('f-link').value.trim(),
+        note: document.getElementById('f-note').value
+      };
+      if (!data.name) return toast('Please name the item 🌱');
+      if (id) { BLOOM.updateInCollection(NS, id, data); toast('Updated 🌿', 'success'); }
+      else { BLOOM.addToCollection(NS, data); toast('Added 🌸', 'success'); }
+      close_();
+      render();
+    }
+    async function del() {
+      const id = document.getElementById('w-id').value;
+      if (id && confirm('Delete this item?')) {
+        const x = BLOOM.getCollection(NS).find(i=>i.id===id);
+        if (x) await maybeDeleteLocalImage(x.image);
+        BLOOM.deleteFromCollection(NS, id); close_(); toast('Removed 🌿'); render();
+      }
+    }
+    document.getElementById('w-modal').addEventListener('click', (e) => { if (e.target.id === 'w-modal') close_(); });
+
+    window.refreshPage = render;
+    renderShell('wishlist');
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Diary</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .diary-card { padding: 22px 26px; margin-bottom: 16px; border-left: 4px solid var(--rose); cursor: pointer; transition: all 0.2s; }
+    .diary-card:hover { transform: translateX(2px); box-shadow: var(--shadow-md); }
+    .diary-date { font-family: var(--font-display); font-size: 1.3rem; color: var(--ink); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .diary-date .weather { font-size: 1.4rem; }
+    .diary-date .mood { font-size: 1.4rem; }
+    .diary-meta { color: var(--ink-faint); font-size: 0.82rem; margin-top: 2px; display: flex; gap: 14px; flex-wrap: wrap; }
+    .diary-title { font-family: var(--font-display); font-size: 1.1rem; margin-top: 6px; color: var(--ink); font-weight: 600; }
+    .diary-snippet { color: var(--ink-soft); margin-top: 6px; line-height: 1.65; white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+    .diary-photos { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .diary-photo { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border); }
+    .photo-pick { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    .photo-pick .ph { position: relative; }
+    .photo-pick img { width: 100px; height: 100px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border); }
+    .photo-pick .rm { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; background: var(--rose); color: white; border: none; border-radius: 50%; font-weight: 900; cursor: pointer; line-height: 1; box-shadow: var(--shadow-sm); }
+    .add-photo-btn { width: 100px; height: 100px; border-radius: 10px; border: 2px dashed var(--border-strong); background: transparent; color: var(--ink-faint); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 0.78rem; font-weight: 700; transition: all 0.15s; }
+    .add-photo-btn:hover { border-color: var(--rose); color: var(--rose); background: var(--blush-soft); }
+    .mood-pick-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .mood-pick-row .opt { padding: 8px 12px; background: var(--bg); border: 1.5px solid transparent; border-radius: 12px; cursor: pointer; font-size: 1.3rem; transition: all 0.15s; }
+    .mood-pick-row .opt:hover { background: var(--blush-soft); }
+    .mood-pick-row .opt.selected { background: var(--blush-soft); border-color: var(--rose); }
+    .weather-pick-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .weather-pick-row .opt { padding: 6px 10px; background: var(--bg); border-radius: 10px; cursor: pointer; font-size: 1.2rem; border: 1.5px solid transparent; transition: all 0.15s; }
+    .weather-pick-row .opt:hover { background: var(--peach-soft); }
+    .weather-pick-row .opt.selected { background: var(--peach-soft); border-color: var(--gold); }
+    .search-bar { display:flex; gap:10px; margin-bottom:18px; }
+    .photo-viewer { position: fixed; inset:0; background: rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:200; padding:24px; }
+    .photo-viewer.open { display:flex; }
+    .photo-viewer img { max-width:90vw; max-height:90vh; border-radius: 12px; }
+    .photo-viewer .close { position:absolute; top:18px; right:18px; background: white; color: var(--ink); border:none; padding: 8px 16px; border-radius:99px; font-weight:700; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>📓 Diary</h1>
+          <div class="subtitle">A daily space for your thoughts, with room for photos.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEditor()">+ New entry</button>
+      </div>
+
+      <div class="search-bar">
+        <input id="search" class="input" placeholder="Search your entries..." oninput="render()">
+      </div>
+
+      <div id="entries"></div>
+    </main>
+  </div>
+
+  <!-- Editor modal -->
+  <div class="modal-backdrop" id="d-modal">
+    <div class="modal" style="max-width:640px;">
+      <h2 id="d-modal-title">📓 New entry</h2>
+      <input type="hidden" id="d-id">
+      <div class="row">
+        <div class="field"><label>Date</label><input id="d-date" class="input" type="date"></div>
+        <div class="field" style="flex:0.6;"><label>Location (optional)</label><input id="d-location" class="input" placeholder="Where you were"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>How did you feel?</label><div id="d-mood" class="mood-pick-row"></div></div>
+        <div class="field"><label>Weather</label><div id="d-weather" class="weather-pick-row"></div></div>
+      </div>
+      <div class="field">
+        <label>Title (optional)</label>
+        <input id="d-title" class="input" placeholder="A name for today...">
+      </div>
+      <div class="field">
+        <label>Today...</label>
+        <textarea id="d-body" class="textarea" style="min-height:180px;" placeholder="Tell future you what happened, what you noticed, what you felt..."></textarea>
+      </div>
+      <div class="field">
+        <label>Photos</label>
+        <div class="photo-pick" id="d-photos"></div>
+        <input type="file" id="photo-input" class="hidden" accept="image/*" multiple onchange="addPhotos(event)">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="d-delete" onclick="deleteEntryConfirm()">Delete</button>
+        <button class="btn btn-ghost" onclick="closeEditor()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEntry()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full-screen photo viewer -->
+  <div class="photo-viewer" id="photo-viewer" onclick="closePhotoViewer()">
+    <button class="close" onclick="event.stopPropagation(); closePhotoViewer()">Close</button>
+    <img id="photo-viewer-img" alt="">
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const MOOD_OPTS = [
+      { v:1, em:'😢' },{ v:2, em:'😠' },{ v:3, em:'😐' },{ v:4, em:'🙂' },{ v:5, em:'🥰' }
+    ];
+    const WEATHER_OPTS = ['☀️','⛅','☁️','🌧️','⛈️','🌨️','🌫️','🌈'];
+    let editing = { mood: null, weather: null, photos: [] };
+
+    function buildPickers() {
+      document.getElementById('d-mood').innerHTML = MOOD_OPTS.map(m =>
+        `<div class="opt ${editing.mood===m.v?'selected':''}" data-v="${m.v}" onclick="pickMood(${m.v})">${m.em}</div>`
+      ).join('');
+      document.getElementById('d-weather').innerHTML = WEATHER_OPTS.map(w =>
+        `<div class="opt ${editing.weather===w?'selected':''}" data-w="${w}" onclick="pickWeather('${w}')">${w}</div>`
+      ).join('');
+    }
+    function pickMood(v) {
+      editing.mood = editing.mood === v ? null : v;
+      document.querySelectorAll('#d-mood .opt').forEach(o => o.classList.toggle('selected', editing.mood === parseInt(o.dataset.v)));
+    }
+    function pickWeather(w) {
+      editing.weather = editing.weather === w ? null : w;
+      document.querySelectorAll('#d-weather .opt').forEach(o => o.classList.toggle('selected', editing.weather === o.dataset.w));
+    }
+
+    async function renderPhotoPick() {
+      const box = document.getElementById('d-photos');
+      let html = '';
+      for (const id of editing.photos) {
+        const url = await BLOOM.loadBlobUrl(id);
+        if (url) html += `<div class="ph"><img src="${url}" alt=""><button type="button" class="rm" onclick="removePhoto('${id}')">×</button></div>`;
+      }
+      html += `<button type="button" class="add-photo-btn" onclick="document.getElementById('photo-input').click()">📷<br>Add photo</button>`;
+      box.innerHTML = html;
+    }
+    async function addPhotos(e) {
+      const files = Array.from(e.target.files || []);
+      for (const f of files) {
+        const id = 'p_' + BLOOM.uid();
+        await BLOOM.saveBlob(id, f);
+        editing.photos.push(id);
+      }
+      e.target.value = '';
+      renderPhotoPick();
+    }
+    function removePhoto(id) {
+      editing.photos = editing.photos.filter(x => x !== id);
+      BLOOM.deleteBlob(id);
+      renderPhotoPick();
+    }
+
+    function openEditor(id) {
+      const e = id ? BLOOM.getDiary().find(x=>x.id===id) : null;
+      document.getElementById('d-modal-title').textContent = e ? '✏️ Edit entry' : '📓 New entry';
+      document.getElementById('d-id').value = e ? e.id : '';
+      document.getElementById('d-date').value = e ? e.date : BLOOM.today();
+      document.getElementById('d-location').value = e ? (e.location || '') : '';
+      document.getElementById('d-title').value = e ? (e.title || '') : '';
+      document.getElementById('d-body').value = e ? (e.body || '') : '';
+      editing.mood = e ? (e.mood || null) : null;
+      editing.weather = e ? (e.weather || null) : null;
+      editing.photos = e ? (e.photos || []).slice() : [];
+      buildPickers();
+      renderPhotoPick();
+      document.getElementById('d-delete').classList.toggle('hidden', !e);
+      document.getElementById('d-modal').classList.add('open');
+      setTimeout(() => document.getElementById('d-body').focus(), 60);
+    }
+    function closeEditor() { document.getElementById('d-modal').classList.remove('open'); }
+    async function saveEntry() {
+      const id = document.getElementById('d-id').value;
+      const data = {
+        date: document.getElementById('d-date').value || BLOOM.today(),
+        location: document.getElementById('d-location').value.trim(),
+        title: document.getElementById('d-title').value.trim(),
+        body: document.getElementById('d-body').value,
+        mood: editing.mood,
+        weather: editing.weather,
+        photos: editing.photos.slice()
+      };
+      // Sync mood to Mood Tracker if set
+      if (data.mood) BLOOM.setMood(data.date, { mood: data.mood, note: data.title || (data.body || '').slice(0,80), tags: ['diary'] });
+      if (id) { BLOOM.updateDiary(id, data); toast('Saved 🌸', 'success'); }
+      else { BLOOM.addDiary(data); toast('Entry saved 🌸', 'success'); }
+      closeEditor();
+      render();
+    }
+    function deleteEntryConfirm() {
+      const id = document.getElementById('d-id').value;
+      if (!id) return;
+      if (confirm('Delete this entry and its photos?')) {
+        const e = BLOOM.getDiary().find(x=>x.id===id);
+        if (e && e.photos) e.photos.forEach(p => BLOOM.deleteBlob(p));
+        BLOOM.deleteDiary(id);
+        closeEditor();
+        toast('Entry removed 🌿');
+        render();
+      }
+    }
+
+    async function render() {
+      const q = (document.getElementById('search').value || '').toLowerCase();
+      let entries = BLOOM.getDiary().slice().sort((a,b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
+      if (q) entries = entries.filter(e =>
+        (e.title || '').toLowerCase().includes(q) ||
+        (e.body || '').toLowerCase().includes(q) ||
+        (e.location || '').toLowerCase().includes(q));
+      const box = document.getElementById('entries');
+      if (entries.length === 0) {
+        box.innerHTML = '<div class="card empty-state">📓<br/>No entries yet. Start with how today felt.</div>';
+        return;
+      }
+      // Render skeleton, then load photos async
+      box.innerHTML = entries.map(e => {
+        const mood = e.mood ? MOOD_OPTS.find(m=>m.v===e.mood) : null;
+        return `<div class="card diary-card" onclick="openEditor('${e.id}')">
+          <div class="diary-date">
+            ${fmtDateLong(e.date)}
+            ${e.weather ? `<span class="weather">${e.weather}</span>` : ''}
+            ${mood ? `<span class="mood">${mood.em}</span>` : ''}
+          </div>
+          ${e.location ? `<div class="diary-meta">📍 ${escapeHtml(e.location)}</div>` : ''}
+          ${e.title ? `<div class="diary-title">${escapeHtml(e.title)}</div>` : ''}
+          ${e.body ? `<div class="diary-snippet">${escapeHtml(e.body)}</div>` : ''}
+          ${(e.photos || []).length > 0 ? `<div class="diary-photos" id="ph-${e.id}"></div>` : ''}
+        </div>`;
+      }).join('');
+      // Load photos
+      for (const e of entries) {
+        if (!e.photos || !e.photos.length) continue;
+        const wrap = document.getElementById('ph-' + e.id);
+        if (!wrap) continue;
+        for (const pid of e.photos) {
+          const url = await BLOOM.loadBlobUrl(pid);
+          if (url) {
+            const img = document.createElement('img');
+            img.className = 'diary-photo';
+            img.src = url;
+            img.alt = '';
+            img.onclick = (ev) => { ev.stopPropagation(); openPhotoViewer(url); };
+            wrap.appendChild(img);
+          }
+        }
+      }
+    }
+    function openPhotoViewer(url) {
+      document.getElementById('photo-viewer-img').src = url;
+      document.getElementById('photo-viewer').classList.add('open');
+    }
+    function closePhotoViewer() { document.getElementById('photo-viewer').classList.remove('open'); }
+
+    document.getElementById('d-modal').addEventListener('click', (e) => { if (e.target.id === 'd-modal') closeEditor(); });
+
+    window.refreshPage = render;
+    renderShell('diary');
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Resources</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .res-card { padding: 18px; display: flex; gap: 14px; align-items: flex-start; }
+    .res-thumb-sm { width: 80px; height: 80px; border-radius: 12px; background: linear-gradient(135deg, var(--blush-soft) 0%, var(--lavender-soft) 100%); display: flex; align-items: center; justify-content: center; font-size: 2rem; flex-shrink: 0; color: var(--rose); overflow: hidden; }
+    .res-thumb-sm img { width: 100%; height: 100%; object-fit: cover; }
+    .res-body { flex: 1; min-width: 0; }
+    .fav-star { background: none; border: none; cursor: pointer; font-size: 1.4rem; color: var(--border-strong); padding: 4px; transition: transform 0.15s; flex-shrink: 0; }
+    .fav-star.on { color: var(--gold); }
+    .fav-star:hover { transform: scale(1.2); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>🔗 Resources</h1>
+          <div class="subtitle">Articles, videos, tools — everything you wanted to come back to.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEditor()">+ Save resource</button>
+      </div>
+
+      <div class="filter-bar">
+        <input id="q" class="input" placeholder="Search..." style="flex:1; min-width:220px;" oninput="render()">
+        <select id="f-type" class="select" onchange="render()" style="min-width:160px;">
+          <option value="">All types</option>
+          <option value="article">Article</option>
+          <option value="video">Video</option>
+          <option value="podcast">Podcast</option>
+          <option value="tool">Tool</option>
+          <option value="other">Other</option>
+        </select>
+        <select id="f-tag" class="select" onchange="render()" style="min-width:160px;">
+          <option value="">All tags</option>
+        </select>
+        <select id="f-special" class="select" onchange="render()" style="min-width:160px;">
+          <option value="">All</option>
+          <option value="fav">★ Favourites</option>
+          <option value="later">📖 Read later</option>
+        </select>
+      </div>
+
+      <div id="grid"></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="r-modal">
+    <div class="modal" style="max-width:560px;">
+      <h2 id="r-title">🔗 Save resource</h2>
+      <input type="hidden" id="r-id">
+      <div class="field"><label>Title</label><input id="f-title" class="input" placeholder="What's it called?"></div>
+      <div class="field"><label>URL</label><input id="f-url" class="input" placeholder="https://..." oninput="tryFavicon()"></div>
+      <div class="row">
+        <div class="field">
+          <label>Type</label>
+          <select id="f-tp" class="select">
+            <option value="article">Article</option>
+            <option value="video">Video</option>
+            <option value="podcast">Podcast</option>
+            <option value="tool">Tool</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field"></div>
+      </div>
+      <div class="field"><label>Thumbnail (optional — auto-fetched from URL if blank)</label><div id="img-pic"></div></div>
+      <div class="field"><label>Tags (comma-separated)</label><input id="f-tags" class="input" placeholder="design, productivity, inspiration..."></div>
+      <div class="field"><label>Why I saved this</label><textarea id="f-note" class="textarea" placeholder="A note for future you..."></textarea></div>
+      <div class="row">
+        <div class="field"><label>Mark as favourite</label><div class="switch" id="f-fav" onclick="toggleFav()"></div></div>
+        <div class="field"><label>Read later</label><div class="switch" id="f-later" onclick="toggleLater()"></div></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="r-del" onclick="del()">Delete</button>
+        <button class="btn btn-ghost" onclick="close_()">Cancel</button>
+        <button class="btn btn-primary" onclick="save()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS = 'resources';
+    let editing = { fav: false, later: false };
+    const TYPE_ICONS = { article: '📄', video: '🎥', podcast: '🎧', tool: '🛠️', other: '🔖' };
+
+    function tryFavicon() { /* no-op (image picker handles thumb now) */ }
+    function autoThumb(url) {
+      if (!url) return '';
+      try { return `https://www.google.com/s2/favicons?sz=128&domain=${new URL(url).hostname}`; } catch(e) { return ''; }
+    }
+
+    function toggleFav() { editing.fav = !editing.fav; document.getElementById('f-fav').classList.toggle('on', editing.fav); }
+    function toggleLater() { editing.later = !editing.later; document.getElementById('f-later').classList.toggle('on', editing.later); }
+
+    async function render() {
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      const ft = document.getElementById('f-type').value;
+      const fg = document.getElementById('f-tag').value;
+      const fsp = document.getElementById('f-special').value;
+      let items = BLOOM.getCollection(NS);
+
+      // build tag filter options
+      const allTags = [...new Set(items.flatMap(x => x.tags || []))].sort();
+      const tagSel = document.getElementById('f-tag');
+      const currentTag = tagSel.value;
+      tagSel.innerHTML = '<option value="">All tags</option>' + allTags.map(t => `<option value="${escapeHtml(t)}" ${t===currentTag?'selected':''}>${escapeHtml(t)}</option>`).join('');
+
+      if (ft) items = items.filter(x => x.type === ft);
+      if (fg) items = items.filter(x => (x.tags || []).includes(fg));
+      if (fsp === 'fav') items = items.filter(x => x.fav);
+      if (fsp === 'later') items = items.filter(x => x.later);
+      if (q) items = items.filter(x =>
+        (x.title || '').toLowerCase().includes(q) ||
+        (x.note || '').toLowerCase().includes(q) ||
+        (x.url || '').toLowerCase().includes(q) ||
+        (x.tags || []).join(' ').toLowerCase().includes(q));
+      items.sort((a,b) => (b.fav?1:0)-(a.fav?1:0) || (b.createdAt||0)-(a.createdAt||0));
+
+      const box = document.getElementById('grid');
+      if (items.length === 0) {
+        box.innerHTML = '<div class="card empty-state">🔗<br/>Nothing saved yet. Drop in a link you want to revisit.</div>';
+        return;
+      }
+      box.innerHTML = items.map(x => {
+        const thumb = x.thumb || autoThumb(x.url);
+        const fallback = TYPE_ICONS[x.type] || '🔖';
+        return `<div class="card res-card" style="margin-bottom:14px; cursor:pointer;" onclick="if(!event.target.closest('.fav-star') && !event.target.closest('a')) openEditor('${x.id}')">
+          <div class="res-thumb-sm">${thumb ? `<img alt="" data-img-src="${escapeHtml(thumb)}" onerror="this.parentElement.innerHTML='${fallback}'">` : fallback}</div>
+          <div class="res-body">
+            <div style="display:flex; gap:8px; align-items:flex-start;">
+              <div class="lib-title" style="flex:1;">${escapeHtml(x.title || '(untitled)')}</div>
+              <button class="fav-star ${x.fav?'on':''}" onclick="event.stopPropagation(); toggleFavQuick('${x.id}')">★</button>
+            </div>
+            ${x.url ? `<div class="lib-sub" style="word-break:break-all;"><a href="${escapeHtml(x.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(x.url.replace(/^https?:\/\//,''))}</a></div>` : ''}
+            ${x.note ? `<div class="lib-sub" style="margin-top:6px; font-style:italic;">"${escapeHtml(x.note)}"</div>` : ''}
+            <div class="lib-meta">
+              <span class="chip">${TYPE_ICONS[x.type] || '🔖'} ${x.type || 'other'}</span>
+              ${x.later ? '<span class="chip" style="background:var(--peach-soft);">📖 Read later</span>' : ''}
+              ${(x.tags || []).map(t => `<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+      await resolveAllImages();
+    }
+
+    function toggleFavQuick(id) {
+      const item = BLOOM.getCollection(NS).find(x=>x.id===id);
+      if (!item) return;
+      BLOOM.updateInCollection(NS, id, { fav: !item.fav });
+      render();
+    }
+
+    async function openEditor(id) {
+      const x = id ? BLOOM.getCollection(NS).find(i=>i.id===id) : null;
+      document.getElementById('r-title').textContent = x ? '✏️ Edit resource' : '🔗 Save resource';
+      document.getElementById('r-id').value = x ? x.id : '';
+      document.getElementById('f-title').value = x ? (x.title || '') : '';
+      document.getElementById('f-url').value = x ? (x.url || '') : '';
+      document.getElementById('f-tp').value = x ? (x.type || 'article') : 'article';
+      await ImagePicker.init('img-pic', x ? (x.thumb || '') : '');
+      document.getElementById('f-tags').value = x ? (x.tags || []).join(', ') : '';
+      document.getElementById('f-note').value = x ? (x.note || '') : '';
+      editing.fav = x ? !!x.fav : false;
+      editing.later = x ? !!x.later : false;
+      document.getElementById('f-fav').classList.toggle('on', editing.fav);
+      document.getElementById('f-later').classList.toggle('on', editing.later);
+      document.getElementById('r-del').classList.toggle('hidden', !x);
+      document.getElementById('r-modal').classList.add('open');
+      setTimeout(() => document.getElementById('f-title').focus(), 60);
+    }
+    function close_() { document.getElementById('r-modal').classList.remove('open'); }
+    function save() {
+      const id = document.getElementById('r-id').value;
+      const data = {
+        title: document.getElementById('f-title').value.trim(),
+        url: document.getElementById('f-url').value.trim(),
+        type: document.getElementById('f-tp').value,
+        thumb: ImagePicker.get('img-pic'),
+        tags: document.getElementById('f-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
+        note: document.getElementById('f-note').value,
+        fav: editing.fav,
+        later: editing.later
+      };
+      if (!data.title && !data.url) return toast('Add a title or URL 🌱');
+      if (!data.title) data.title = data.url.replace(/^https?:\/\//,'').split('/')[0];
+      if (id) { BLOOM.updateInCollection(NS, id, data); toast('Updated 🌿', 'success'); }
+      else { BLOOM.addToCollection(NS, data); toast('Saved 🌸', 'success'); }
+      close_();
+      render();
+    }
+    async function del() {
+      const id = document.getElementById('r-id').value;
+      if (id && confirm('Delete this resource?')) {
+        const x = BLOOM.getCollection(NS).find(i=>i.id===id);
+        if (x) await maybeDeleteLocalImage(x.thumb);
+        BLOOM.deleteFromCollection(NS, id); close_(); toast('Removed 🌿'); render();
+      }
+    }
+    document.getElementById('r-modal').addEventListener('click', (e) => { if (e.target.id === 'r-modal') close_(); });
+
+    window.refreshPage = render;
+    renderShell('resources');
+    render();
+  </script>
+</body>
+</html>

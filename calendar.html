@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Calendar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>📅 Calendar</h1>
+          <div class="subtitle">Keep your appointments, moments, and meetings in one calm place.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEventEditor()">+ New event</button>
+      </div>
+
+      <div class="calendar-toolbar">
+        <button class="icon-btn" onclick="changeMonth(-1)" title="Previous month"></button>
+        <h2 class="month-name" id="month-name">Month</h2>
+        <button class="icon-btn" onclick="changeMonth(1)" title="Next month"></button>
+        <button class="btn btn-secondary btn-sm" onclick="goToday()">Today</button>
+      </div>
+
+      <div class="calendar-grid" id="cal-grid"></div>
+
+      <div class="card mt-2" id="day-detail-card" style="display:none;">
+        <div class="card-header">
+          <div class="card-title" id="day-title">Day</div>
+          <button class="btn btn-primary btn-sm" onclick="openEventEditor()">+ Add event</button>
+        </div>
+        <div id="day-events"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Event editor modal -->
+  <div class="modal-backdrop" id="evt-modal">
+    <div class="modal">
+      <h2 id="evt-modal-title">🌸 New event</h2>
+      <input type="hidden" id="evt-id">
+      <div class="field">
+        <label>Title</label>
+        <input id="evt-title" class="input" placeholder="What's this moment?" />
+      </div>
+      <div class="row">
+        <div class="field"><label>Date</label><input id="evt-date" class="input" type="date" /></div>
+        <div class="field"><label>Time</label><input id="evt-time" class="input" type="time" /></div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Category</label>
+          <select id="evt-category" class="select">
+            <option value="personal">Personal</option>
+            <option value="meeting">Meeting</option>
+            <option value="errand">Errand</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Recurrence</label>
+          <select id="evt-recur" class="select">
+            <option value="none">None</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Location (optional)</label>
+        <input id="evt-location" class="input" placeholder="Where will this happen?" />
+      </div>
+      <div class="field">
+        <label>Notes — what is this about? What happened?</label>
+        <textarea id="evt-notes" class="textarea" placeholder="Agenda, prep, reflections after the meeting..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="evt-delete" onclick="deleteEventConfirm()">Delete</button>
+        <button class="btn btn-ghost" onclick="closeEventEditor()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEvent()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    let view = new Date();
+    let selectedDate = BLOOM.today();
+    const evtModal = () => document.getElementById('evt-modal');
+
+    function setNavBtns() {
+      document.querySelectorAll('.calendar-toolbar .icon-btn').forEach((b, i) => {
+        b.innerHTML = i === 0 ? ICONS.chevronL : ICONS.chevronR;
+      });
+    }
+    function changeMonth(delta) { view.setMonth(view.getMonth() + delta); renderCalendar(); }
+    function goToday() { view = new Date(); selectedDate = BLOOM.today(); renderCalendar(); renderDay(); }
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+    function ymd(y, m, d) { return `${y}-${pad(m+1)}-${pad(d)}`; }
+
+    function renderCalendar() {
+      const y = view.getFullYear(), m = view.getMonth();
+      document.getElementById('month-name').textContent = view.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const first = new Date(y, m, 1);
+      const startDow = first.getDay();
+      const daysInMonth = new Date(y, m+1, 0).getDate();
+      const daysInPrev = new Date(y, m, 0).getDate();
+      const cells = [];
+      // leading days from previous month
+      for (let i = startDow - 1; i >= 0; i--) cells.push({ d: daysInPrev - i, other: true, year: m === 0 ? y - 1 : y, month: m === 0 ? 11 : m - 1 });
+      // current month
+      for (let i = 1; i <= daysInMonth; i++) cells.push({ d: i, other: false, year: y, month: m });
+      // trailing days from next month
+      let trailDay = 1;
+      while (cells.length < 42) {
+        cells.push({ d: trailDay++, other: true, year: m === 11 ? y + 1 : y, month: m === 11 ? 0 : m + 1 });
+      }
+
+      const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      let html = '';
+      dow.forEach(n => html += `<div class="cal-dow">${n}</div>`);
+      const events = BLOOM.getEvents();
+      const todayStr = BLOOM.today();
+      cells.forEach(c => {
+        const ds = ymd(c.year, c.month, c.d);
+        const isToday = ds === todayStr;
+        const isSelected = ds === selectedDate;
+        // include recurring events
+        const dayEvts = events.filter(e => matchesDate(e, ds));
+        let evHtml = dayEvts.slice(0,3).map(e => `<div class="cal-event cat-${e.category || 'other'}" title="${escapeHtml(e.title)}">${e.time ? e.time + ' ' : ''}${escapeHtml(e.title)}</div>`).join('');
+        if (dayEvts.length > 3) evHtml += `<div class="cal-event" style="background:transparent;color:var(--ink-faint);">+${dayEvts.length-3} more</div>`;
+        html += `<div class="cal-day ${c.other ? 'other-month' : ''} ${isToday ? 'today' : ''}" style="${isSelected ? 'outline:2px solid var(--rose);' : ''}" onclick="selectDate('${ds}')">
+          <div class="cal-day-num">${c.d}</div>
+          ${evHtml}
+        </div>`;
+      });
+      document.getElementById('cal-grid').innerHTML = html;
+      renderDay();
+    }
+
+    function matchesDate(e, ds) {
+      if (e.date === ds) return true;
+      if (!e.recur || e.recur === 'none') return false;
+      const start = new Date(e.date + 'T00:00:00');
+      const target = new Date(ds + 'T00:00:00');
+      if (target < start) return false;
+      if (e.recur === 'daily') return true;
+      if (e.recur === 'weekly') return start.getDay() === target.getDay();
+      if (e.recur === 'monthly') return start.getDate() === target.getDate();
+      return false;
+    }
+
+    function selectDate(ds) {
+      selectedDate = ds;
+      renderCalendar();
+    }
+    function renderDay() {
+      const card = document.getElementById('day-detail-card');
+      card.style.display = 'block';
+      document.getElementById('day-title').innerHTML = '📌 ' + fmtDateLong(selectedDate);
+      const events = BLOOM.getEvents().filter(e => matchesDate(e, selectedDate)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+      const box = document.getElementById('day-events');
+      if (events.length === 0) {
+        box.innerHTML = '<div class="empty-state">No events on this day. A blank canvas 🤍</div>';
+      } else {
+        box.innerHTML = events.map(e => `
+          <div class="todo-item" onclick="openEventEditor('${e.id}')" style="cursor:pointer;">
+            <span class="chip cat-${e.category || 'other'}">${e.time || '—'}</span>
+            <div class="todo-content">
+              <div class="todo-title">${escapeHtml(e.title)}</div>
+              <div class="todo-meta">
+                <span>${e.category || 'other'}</span>
+                ${e.location ? `<span>📍 ${escapeHtml(e.location)}</span>` : ''}
+                ${e.recur && e.recur !== 'none' ? `<span>↻ ${e.recur}</span>` : ''}
+                ${e.notes ? `<span>📝 has notes</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function openEventEditor(id) {
+      const m = evtModal();
+      const ev = id ? BLOOM.getEvents().find(x => x.id === id) : null;
+      document.getElementById('evt-modal-title').textContent = ev ? '✏️ Edit event' : '🌸 New event';
+      document.getElementById('evt-id').value = ev ? ev.id : '';
+      document.getElementById('evt-title').value = ev ? ev.title : '';
+      document.getElementById('evt-date').value = ev ? ev.date : selectedDate;
+      document.getElementById('evt-time').value = ev ? (ev.time || '') : '';
+      document.getElementById('evt-category').value = ev ? (ev.category || 'personal') : 'personal';
+      document.getElementById('evt-recur').value = ev ? (ev.recur || 'none') : 'none';
+      document.getElementById('evt-location').value = ev ? (ev.location || '') : '';
+      document.getElementById('evt-notes').value = ev ? (ev.notes || '') : '';
+      document.getElementById('evt-delete').classList.toggle('hidden', !ev);
+      m.classList.add('open');
+      setTimeout(() => document.getElementById('evt-title').focus(), 60);
+    }
+    function closeEventEditor() { evtModal().classList.remove('open'); }
+    function saveEvent() {
+      const id = document.getElementById('evt-id').value;
+      const data = {
+        title: document.getElementById('evt-title').value.trim(),
+        date: document.getElementById('evt-date').value,
+        time: document.getElementById('evt-time').value,
+        category: document.getElementById('evt-category').value,
+        recur: document.getElementById('evt-recur').value,
+        location: document.getElementById('evt-location').value.trim(),
+        notes: document.getElementById('evt-notes').value
+      };
+      if (!data.title) return toast('Please enter a title 🌱');
+      if (!data.date) return toast('Please pick a date 🌱');
+      if (id) { BLOOM.updateEvent(id, data); toast('Updated 🌿', 'success'); }
+      else { BLOOM.addEvent(data); toast('Event added 🌸', 'success'); }
+      closeEventEditor();
+      renderCalendar();
+    }
+    function deleteEventConfirm() {
+      const id = document.getElementById('evt-id').value;
+      if (!id) return;
+      if (confirm('Delete this event?')) {
+        BLOOM.deleteEvent(id);
+        toast('Event removed 🌿', 'success');
+        closeEventEditor();
+        renderCalendar();
+      }
+    }
+
+    evtModal().addEventListener('click', (e) => { if (e.target === evtModal()) closeEventEditor(); });
+
+    window.refreshPage = renderCalendar;
+    renderShell('calendar');
+    setNavBtns();
+    renderCalendar();
+  </script>
+</body>
+</html>

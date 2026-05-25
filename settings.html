@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>⚙️ Settings</h1>
+          <div class="subtitle">Make Bloom feel like yours.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🌸 Profile</div>
+        <div class="field">
+          <label>Profile picture</label>
+          <div id="img-pic"></div>
+        </div>
+        <div class="field">
+          <label>Your name (how Bloom greets you)</label>
+          <input id="set-name" class="input" placeholder="Praew" />
+        </div>
+        <div class="row">
+          <div class="field" style="flex:1;">
+            <label>Currency (for Finance)</label>
+            <select id="set-currency" class="select">
+              <option value="THB">THB ฿</option>
+              <option value="USD">USD $</option>
+              <option value="EUR">EUR €</option>
+              <option value="JPY">JPY ¥</option>
+              <option value="GBP">GBP £</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1;">
+            <label>First day of week</label>
+            <select id="set-fdow" class="select">
+              <option value="0">Sunday</option>
+              <option value="1">Monday</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-1" onclick="saveProfile()">Save profile</button>
+      </div>
+
+      <div class="card mt-2">
+        <div class="card-title">🌙 Appearance</div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Dark mode (moonlight)</div>
+            <div class="setting-hint">A soft mauve-and-navy palette for evening hours.</div>
+          </div>
+          <div class="switch" id="theme-switch" onclick="toggleTheme()"></div>
+        </div>
+      </div>
+
+      <div class="card mt-2">
+        <div class="card-title">💾 Your data</div>
+        <p class="text-muted">Bloom stores everything locally on your computer. Nothing is sent anywhere. You can back it up to a file or restore from one.</p>
+        <div class="row mt-1">
+          <button class="btn btn-secondary" onclick="exportData()">Export backup</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">Import backup</button>
+          <button class="btn btn-danger" onclick="clearData()">Clear all data</button>
+          <input type="file" id="import-file" class="hidden" accept=".json" onchange="importData(event)">
+        </div>
+      </div>
+
+      <div class="card mt-2">
+        <div class="card-title">🦋 About Bloom</div>
+        <p>Bloom is a calm, local-first space for the whole shape of your life: today's tasks, dreams ahead, what you read and watch, and how you feel. It grows with you, sprint by sprint.</p>
+        <p class="text-muted">Currently in Sprint 1 — Foundation & Daily Use.</p>
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    async function loadSettings() {
+      const s = BLOOM.getSettings();
+      document.getElementById('set-name').value = s.name || '';
+      document.getElementById('set-currency').value = s.currency || 'THB';
+      document.getElementById('set-fdow').value = s.firstDayOfWeek || 0;
+      document.getElementById('theme-switch').classList.toggle('on', s.theme === 'dark');
+      await ImagePicker.init('img-pic', s.avatar || '');
+    }
+    async function saveProfile() {
+      const s = BLOOM.getSettings();
+      const prevAvatar = s.avatar;
+      s.name = document.getElementById('set-name').value.trim();
+      s.currency = document.getElementById('set-currency').value;
+      s.firstDayOfWeek = parseInt(document.getElementById('set-fdow').value, 10);
+      s.avatar = ImagePicker.get('img-pic');
+      // Clean up old local blob if it's been replaced
+      if (prevAvatar && prevAvatar !== s.avatar && prevAvatar.startsWith('local:')) {
+        await BLOOM.deleteBlob(prevAvatar.slice(6));
+      }
+      BLOOM.saveSettings(s);
+      toast('Saved 🌸', 'success');
+    }
+    function toggleTheme() {
+      const s = BLOOM.getSettings();
+      s.theme = s.theme === 'dark' ? 'light' : 'dark';
+      BLOOM.saveSettings(s);
+      document.getElementById('theme-switch').classList.toggle('on', s.theme === 'dark');
+      // refresh icon in topbar
+      const tt = document.getElementById('theme-toggle');
+      if (tt) tt.innerHTML = s.theme === 'dark' ? ICONS.sun : ICONS.moon;
+    }
+    function exportData() {
+      const data = BLOOM.exportAll();
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bloom-backup-${BLOOM.today()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Backup downloaded 🌿', 'success');
+    }
+    function importData(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          BLOOM.importAll(ev.target.result);
+          toast('Restored 🌸', 'success');
+          setTimeout(() => location.reload(), 500);
+        } catch (err) { toast('That file does not look like a Bloom backup.'); }
+      };
+      reader.readAsText(file);
+    }
+    function clearData() {
+      if (!confirm('This will erase ALL Bloom data on this device. Continue?')) return;
+      if (!confirm('Really? This cannot be undone.')) return;
+      BLOOM.clearAll();
+      toast('Garden cleared 🌱');
+      setTimeout(() => location.reload(), 500);
+    }
+    renderShell('settings');
+    loadSettings();
+  </script>
+</body>
+</html>

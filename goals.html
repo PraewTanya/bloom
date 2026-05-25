@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Goals & Vision</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>🎯 Goals & Vision</h1>
+          <div class="subtitle">Where your dreams take shape and your future takes flight.</div>
+        </div>
+      </div>
+
+      <div class="novel-tabs" id="tabs">
+        <button class="novel-tab active" onclick="setTab('goals')">🎯 Goals</button>
+        <button class="novel-tab" onclick="setTab('boards')">🌸 Vision Boards</button>
+      </div>
+
+      <!-- ============ GOALS TAB ============ -->
+      <div id="tab-goals">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <select id="f-cat" class="select" onchange="renderGoals()" style="min-width:200px;">
+            <option value="">All categories</option>
+            <option value="career">Career</option>
+            <option value="health">Health</option>
+            <option value="relationship">Relationship</option>
+            <option value="money">Money</option>
+            <option value="learning">Learning</option>
+            <option value="personal">Personal</option>
+            <option value="other">Other</option>
+          </select>
+          <button class="btn btn-primary" onclick="openGoal()">+ New goal</button>
+        </div>
+        <div id="goals-list"></div>
+      </div>
+
+      <!-- ============ BOARDS TAB ============ -->
+      <div id="tab-boards" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <select id="board-pick" class="select" onchange="loadBoard()" style="min-width:200px;"></select>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="newBoard()">+ New board</button>
+            <button class="btn btn-ghost btn-sm" onclick="renameBoard()">Rename</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteBoard()">Delete</button>
+          </div>
+        </div>
+
+        <div class="vb-toolbar">
+          <button class="btn btn-primary btn-sm" onclick="addBoardImage()">📷 Add image</button>
+          <button class="btn btn-secondary btn-sm" onclick="addBoardQuote()">💭 Add quote</button>
+          <button class="btn btn-secondary btn-sm" onclick="addBoardGoal()">🎯 Pin a goal</button>
+          <span class="text-muted" style="font-size:0.82rem; margin-left:auto;">Drag to move · drag corner to resize · hover ✕ to remove</span>
+        </div>
+
+        <div class="vb-canvas" id="canvas"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Goal editor -->
+  <div class="modal-backdrop" id="g-modal">
+    <div class="modal" style="max-width:560px;">
+      <h2 id="g-title">🎯 New goal</h2>
+      <input type="hidden" id="g-id">
+      <div class="field"><label>Title</label><input id="gf-title" class="input"></div>
+      <div class="row">
+        <div class="field">
+          <label>Category</label>
+          <select id="gf-cat" class="select">
+            <option value="career">Career</option>
+            <option value="health">Health</option>
+            <option value="relationship">Relationship</option>
+            <option value="money">Money</option>
+            <option value="learning">Learning</option>
+            <option value="personal">Personal</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field"><label>Target date</label><input id="gf-target" class="input" type="date"></div>
+      </div>
+      <div class="field"><label>Why this matters</label><textarea id="gf-why" class="textarea" style="min-height:80px;" placeholder="The real reason behind this goal..."></textarea></div>
+
+      <div class="field">
+        <label>Milestones</label>
+        <div id="gf-ms"></div>
+        <button type="button" class="btn btn-ghost btn-sm mt-1" onclick="addMs()">+ Add milestone</button>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="g-del" onclick="delGoal()">Delete</button>
+        <button class="btn btn-ghost" onclick="closeGoal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveGoal()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quote modal for vision board -->
+  <div class="modal-backdrop" id="q-modal">
+    <div class="modal">
+      <h2>💭 Add quote</h2>
+      <div class="field"><label>Quote / affirmation</label><textarea id="qf-text" class="textarea" style="min-height:120px;" placeholder="A line that lifts you..."></textarea></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="document.getElementById('q-modal').classList.remove('open');">Cancel</button>
+        <button class="btn btn-primary" onclick="saveQuote()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image add modal for vision board -->
+  <div class="modal-backdrop" id="im-modal">
+    <div class="modal">
+      <h2>📷 Add image</h2>
+      <div class="field"><label>Image</label><div id="img-pic"></div></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="document.getElementById('im-modal').classList.remove('open');">Cancel</button>
+        <button class="btn btn-primary" onclick="saveImage()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pick goal for vision board -->
+  <div class="modal-backdrop" id="pg-modal">
+    <div class="modal">
+      <h2>🎯 Pin a goal</h2>
+      <div class="field"><label>Choose a goal</label><select id="pgf" class="select"></select></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="document.getElementById('pg-modal').classList.remove('open');">Cancel</button>
+        <button class="btn btn-primary" onclick="saveGoalPin()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS_G = 'goals';
+    const NS_B = 'boards';
+    let editingMs = [];
+
+    /* ============== TABS ============== */
+    function setTab(t) {
+      document.querySelectorAll('.novel-tab').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.novel-tab').forEach((el,i) => { if ((t==='goals' && i===0) || (t==='boards' && i===1)) el.classList.add('active'); });
+      document.getElementById('tab-goals').style.display = t === 'goals' ? 'block' : 'none';
+      document.getElementById('tab-boards').style.display = t === 'boards' ? 'block' : 'none';
+      if (t === 'boards') initBoards();
+    }
+
+    /* ============== GOALS ============== */
+    function goalProgress(g) {
+      const ms = g.milestones || [];
+      if (ms.length === 0) return 0;
+      return Math.round(ms.filter(m=>m.done).length / ms.length * 100);
+    }
+    function CAT_ICON(c){ return {career:'💼', health:'🌿', relationship:'💗', money:'💰', learning:'📚', personal:'🌸', other:'✨'}[c] || '✨'; }
+
+    function renderGoals() {
+      const fc = document.getElementById('f-cat').value;
+      let items = BLOOM.getCollection(NS_G);
+      if (fc) items = items.filter(g => g.category === fc);
+      items.sort((a,b) => (b.createdAt||0)-(a.createdAt||0));
+      const box = document.getElementById('goals-list');
+      if (items.length === 0) {
+        box.innerHTML = '<div class="card empty-state">🎯<br/>No goals yet. Plant your first one.</div>';
+        return;
+      }
+      box.innerHTML = items.map(g => {
+        const prog = goalProgress(g);
+        const days = g.target ? Math.ceil((new Date(g.target) - new Date()) / 86400000) : null;
+        return `<div class="card goal-card cat-${g.category || 'other'}" onclick="openGoal('${g.id}')">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+              <div class="goal-title">${CAT_ICON(g.category)} ${escapeHtml(g.title)}</div>
+              ${g.why ? `<div class="text-muted" style="font-style:italic; margin-top:6px; -webkit-line-clamp:2; display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden;">"${escapeHtml(g.why)}"</div>` : ''}
+              <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                <span class="chip">${(g.milestones||[]).length} milestone${(g.milestones||[]).length===1?'':'s'}</span>
+                ${g.target ? `<span class="chip">🎯 ${fmtDateShort(g.target)} ${days !== null ? `(${days > 0 ? days + 'd to go' : days === 0 ? 'today' : (-days) + 'd past'})` : ''}</span>` : ''}
+              </div>
+              <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${prog}%;"></div></div>
+              <div class="text-muted" style="font-size:0.82rem; margin-top:4px;">${prog}% complete</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderMs() {
+      const box = document.getElementById('gf-ms');
+      if (editingMs.length === 0) { box.innerHTML = '<div class="text-muted" style="font-size:0.82rem; font-style:italic;">No milestones yet</div>'; return; }
+      box.innerHTML = editingMs.map((m, i) => `<div class="milestone-row ${m.done?'done':''}">
+        <button type="button" class="milestone-check" onclick="toggleEditMs(${i})">${ICONS.check}</button>
+        <input class="input" value="${escapeHtml(m.title)}" oninput="editingMs[${i}].title=this.value" style="flex:1;">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="removeEditMs(${i})">${ICONS.trash}</button>
+      </div>`).join('');
+    }
+    function addMs() { editingMs.push({ id: BLOOM.uid(), title: '', done: false }); renderMs(); }
+    function toggleEditMs(i) { editingMs[i].done = !editingMs[i].done; renderMs(); }
+    function removeEditMs(i) { editingMs.splice(i,1); renderMs(); }
+
+    function openGoal(id) {
+      const x = id ? BLOOM.getCollection(NS_G).find(g=>g.id===id) : null;
+      document.getElementById('g-title').textContent = x ? '✏️ Edit goal' : '🎯 New goal';
+      document.getElementById('g-id').value = x ? x.id : '';
+      document.getElementById('gf-title').value = x ? (x.title || '') : '';
+      document.getElementById('gf-cat').value = x ? (x.category || 'personal') : 'personal';
+      document.getElementById('gf-target').value = x ? (x.target || '') : '';
+      document.getElementById('gf-why').value = x ? (x.why || '') : '';
+      editingMs = x ? (x.milestones || []).map(m => ({...m})) : [];
+      renderMs();
+      document.getElementById('g-del').classList.toggle('hidden', !x);
+      document.getElementById('g-modal').classList.add('open');
+      setTimeout(() => document.getElementById('gf-title').focus(), 60);
+    }
+    function closeGoal() { document.getElementById('g-modal').classList.remove('open'); }
+    function saveGoal() {
+      const id = document.getElementById('g-id').value;
+      const data = {
+        title: document.getElementById('gf-title').value.trim(),
+        category: document.getElementById('gf-cat').value,
+        target: document.getElementById('gf-target').value || null,
+        why: document.getElementById('gf-why').value,
+        milestones: editingMs.filter(m => m.title.trim()).map(m => ({...m, title: m.title.trim()}))
+      };
+      if (!data.title) return toast('Give it a title 🌱');
+      if (id) { BLOOM.updateInCollection(NS_G, id, data); toast('Updated 🌿', 'success'); }
+      else { BLOOM.addToCollection(NS_G, data); toast('Goal planted 🎯', 'success'); }
+      closeGoal();
+      renderGoals();
+    }
+    function delGoal() {
+      const id = document.getElementById('g-id').value;
+      if (id && confirm('Delete this goal?')) { BLOOM.deleteFromCollection(NS_G, id); closeGoal(); toast('Removed 🌿'); renderGoals(); }
+    }
+    document.getElementById('g-modal').addEventListener('click', (e) => { if (e.target.id === 'g-modal') closeGoal(); });
+
+    /* ============== VISION BOARDS ============== */
+    let currentBoardId = null;
+
+    function initBoards() {
+      const list = BLOOM.getCollection(NS_B);
+      if (list.length === 0) {
+        const nb = BLOOM.addToCollection(NS_B, { name: 'My Vision', items: [] });
+        currentBoardId = nb.id;
+      } else if (!currentBoardId || !list.find(b=>b.id===currentBoardId)) {
+        currentBoardId = list[0].id;
+      }
+      renderBoardPicker();
+      renderBoard();
+    }
+    function renderBoardPicker() {
+      const list = BLOOM.getCollection(NS_B);
+      const sel = document.getElementById('board-pick');
+      sel.innerHTML = list.map(b => `<option value="${b.id}" ${b.id===currentBoardId?'selected':''}>${escapeHtml(b.name)}</option>`).join('');
+    }
+    function loadBoard() {
+      currentBoardId = document.getElementById('board-pick').value;
+      renderBoard();
+    }
+    function newBoard() {
+      const name = prompt('Board name?', 'New Board');
+      if (!name) return;
+      const nb = BLOOM.addToCollection(NS_B, { name, items: [] });
+      currentBoardId = nb.id;
+      renderBoardPicker();
+      renderBoard();
+    }
+    function renameBoard() {
+      const b = BLOOM.getCollection(NS_B).find(x=>x.id===currentBoardId);
+      if (!b) return;
+      const name = prompt('Rename board to:', b.name);
+      if (!name) return;
+      BLOOM.updateInCollection(NS_B, currentBoardId, { name });
+      renderBoardPicker();
+    }
+    function deleteBoard() {
+      if (!confirm('Delete this board?')) return;
+      const b = BLOOM.getCollection(NS_B).find(x=>x.id===currentBoardId);
+      if (b) (b.items || []).forEach(i => { if (i.type === 'image') maybeDeleteLocalImage(i.value); });
+      BLOOM.deleteFromCollection(NS_B, currentBoardId);
+      currentBoardId = null;
+      initBoards();
+    }
+
+    async function renderBoard() {
+      const b = BLOOM.getCollection(NS_B).find(x=>x.id===currentBoardId);
+      const c = document.getElementById('canvas');
+      if (!b) { c.innerHTML = ''; return; }
+      const items = b.items || [];
+      if (items.length === 0) {
+        c.innerHTML = '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; color:var(--ink-faint); font-style:italic;"><div style="font-size:3rem;">🌸</div><div>Pin images, quotes, and goals to your vision.</div></div>';
+        return;
+      }
+      c.innerHTML = items.map(it => {
+        const style = `left:${it.x||20}px; top:${it.y||20}px; width:${it.w||180}px; height:${it.h||180}px;`;
+        let body = '';
+        if (it.type === 'image') body = `<img alt="" data-img-src="${escapeHtml(it.value)}">`;
+        else if (it.type === 'quote') body = `"${escapeHtml(it.value)}"`;
+        else if (it.type === 'goal') {
+          const g = BLOOM.getCollection(NS_G).find(x=>x.id===it.value);
+          if (g) {
+            const prog = goalProgress(g);
+            body = `<div class="g-title">${CAT_ICON(g.category)} ${escapeHtml(g.title)}</div><div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${prog}%;"></div></div><div class="g-prog">${prog}% · ${g.target ? fmtDateShort(g.target) : 'no target'}</div>`;
+          } else body = '(goal removed)';
+        }
+        return `<div class="vb-item ${it.type}" data-id="${it.id}" style="${style}" onmousedown="startDrag(event, '${it.id}')">
+          <button class="rm" onclick="event.stopPropagation(); removeBoardItem('${it.id}')">×</button>
+          ${body}
+          <div class="vb-handle" onmousedown="event.stopPropagation(); startResize(event, '${it.id}')"></div>
+        </div>`;
+      }).join('');
+      await resolveAllImages();
+    }
+
+    function addBoardItem(item) {
+      const b = BLOOM.getCollection(NS_B).find(x=>x.id===currentBoardId);
+      if (!b) return;
+      const items = (b.items || []).slice();
+      items.push({ id: BLOOM.uid(), x: 30 + Math.random()*200, y: 30 + Math.random()*200, w: 180, h: item.type === 'quote' ? 120 : 180, ...item });
+      BLOOM.updateInCollection(NS_B, currentBoardId, { items });
+      renderBoard();
+    }
+    async function removeBoardItem(id) {
+      if (!confirm('Remove this from the board?')) return;
+      const b = BLOOM.getCollection(NS_B).find(x=>x.id===currentBoardId);
+      if (!b) return;
+      const target = (b.items || []).find(i => i.id === id);
+      if (target && target.type === 'image') await maybeDeleteLocalImage(target.value);
+      const items = (b.items || []).filter(i => i.id !== id);
+      BLOOM.updateInCollection(NS_B, currentBoardId, { items });
+      renderBoard();
+    }
+
+    // Drag and resize
+    let dragInfo = null;
+    function startDrag(e, id) {
+      if (e.target.closest('.rm') || e.target.closest('.vb-handle')) return;
+      const el = e.currentTarget;
+      el.classList.add('dragging');
+      const rect = el.getBoundingClientRect();
+      const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+      dragInfo = { id, type:'drag', ox: e.clientX - rect.left, oy: e.clientY - rect.top, canvasRect };
+      document.addEventListener('mousemove', onDragMove);
+      document.addEventListener('mouseup', onDragEnd);
+      e.preventDefault();
+    }
+    function startResize(e, id) {
+      const el = document.querySelector(`.vb-item[data-id="${id}"]`);
+      const rect = el.getBoundingClientRect();
+      dragInfo = { id, type:'resize', sx: e.clientX, sy: e.clientY, sw: rect.width, sh: rect.height };
+      document.addEventListener('mousemove', onDragMove);
+      document.addEventListener('mouseup', onDragEnd);
+      e.preventDefault();
+    }
+    function onDragMove(e) {
+      if (!dragInfo) return;
+      const el = document.querySelector(`.vb-item[data-id="${dragInfo.id}"]`);
+      if (!el) return;
+      if (dragInfo.type === 'drag') {
+        const x = e.clientX - dragInfo.canvasRect.left - dragInfo.ox;
+        const y = e.clientY - dragInfo.canvasRect.top - dragInfo.oy;
+        el.style.left = Math.max(0, x) + 'px';
+        el.style.top = Math.max(0, y) + 'px';
+      } else {
+        const w = Math.max(80, dragInfo.sw + (e.clientX - dragInfo.sx));
+        const h = Math.max(60, dragInfo.sh + (e.clientY - dragInfo.sy));
+        el.style.width = w + 'px';
+        el.style.height = h + 'px';
+      }
+    }
+    function onDragEnd() {
+      if (!dragInfo) return;
+      const el = document.querySelector(`.vb-item[data-id="${dragInfo.id}"]`);
+      if (el) {
+        el.classList.remove('dragging');
+        const b = BLOOM.getCollection(NS_B).find(x=>x.id===currentBoardId);
+        if (b) {
+          const items = (b.items || []).map(i => i.id === dragInfo.id ? {
+            ...i,
+            x: parseInt(el.style.left) || 0,
+            y: parseInt(el.style.top) || 0,
+            w: parseInt(el.style.width) || i.w,
+            h: parseInt(el.style.height) || i.h
+          } : i);
+          BLOOM.updateInCollection(NS_B, currentBoardId, { items });
+        }
+      }
+      dragInfo = null;
+      document.removeEventListener('mousemove', onDragMove);
+      document.removeEventListener('mouseup', onDragEnd);
+    }
+
+    // Add image
+    async function addBoardImage() {
+      await ImagePicker.init('img-pic', '');
+      document.getElementById('im-modal').classList.add('open');
+    }
+    function saveImage() {
+      const v = ImagePicker.get('img-pic');
+      if (!v) return toast('Pick an image 🌱');
+      addBoardItem({ type: 'image', value: v });
+      document.getElementById('im-modal').classList.remove('open');
+    }
+
+    // Add quote
+    function addBoardQuote() {
+      document.getElementById('qf-text').value = '';
+      document.getElementById('q-modal').classList.add('open');
+      setTimeout(() => document.getElementById('qf-text').focus(), 60);
+    }
+    function saveQuote() {
+      const v = document.getElementById('qf-text').value.trim();
+      if (!v) return toast('Write the quote 🌱');
+      addBoardItem({ type: 'quote', value: v });
+      document.getElementById('q-modal').classList.remove('open');
+    }
+
+    // Add goal
+    function addBoardGoal() {
+      const goals = BLOOM.getCollection(NS_G);
+      if (goals.length === 0) return toast('Create a goal first 🌱');
+      document.getElementById('pgf').innerHTML = goals.map(g => `<option value="${g.id}">${CAT_ICON(g.category)} ${escapeHtml(g.title)}</option>`).join('');
+      document.getElementById('pg-modal').classList.add('open');
+    }
+    function saveGoalPin() {
+      const id = document.getElementById('pgf').value;
+      if (!id) return;
+      addBoardItem({ type: 'goal', value: id });
+      document.getElementById('pg-modal').classList.remove('open');
+    }
+
+    window.refreshPage = () => { renderGoals(); if (currentBoardId) renderBoard(); };
+    renderShell('goals');
+    renderGoals();
+  </script>
+</body>
+</html>

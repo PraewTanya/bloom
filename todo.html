@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — To-Do</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>✅ To-Do</h1>
+          <div class="subtitle">Small steps, every day. Your tasks will gently roll forward if undone.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openTodoEditor()">+ New task</button>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div class="row">
+          <div class="field" style="flex:2;">
+            <label>Quick add</label>
+            <input id="quick-add" class="input" placeholder="Type a task and press Enter..." onkeydown="if(event.key==='Enter') quickAdd()">
+          </div>
+          <div class="field" style="flex:1;">
+            <label>Filter</label>
+            <select id="filter-priority" class="select" onchange="render()">
+              <option value="">All priorities</option>
+              <option value="high">High only</option>
+              <option value="medium">Medium only</option>
+              <option value="low">Low only</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1;">
+            <label>Hide completed</label>
+            <div class="switch" id="hide-done" onclick="toggleHideDone()"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="todo-groups"></div>
+    </main>
+  </div>
+
+  <!-- Editor modal -->
+  <div class="modal-backdrop" id="td-modal">
+    <div class="modal">
+      <h2 id="td-modal-title">🌿 New task</h2>
+      <input type="hidden" id="td-id">
+      <div class="field">
+        <label>Title</label>
+        <input id="td-title" class="input" placeholder="What needs to be done?" />
+      </div>
+      <div class="row">
+        <div class="field"><label>Due date</label><input id="td-date" class="input" type="date"></div>
+        <div class="field">
+          <label>Priority</label>
+          <select id="td-priority" class="select">
+            <option value="">None</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Tag (optional)</label>
+        <input id="td-tag" class="input" placeholder="work · self-care · errand ...">
+      </div>
+      <div class="field">
+        <label>Notes (optional)</label>
+        <textarea id="td-notes" class="textarea"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="td-delete" onclick="deleteTodoConfirm()">Delete</button>
+        <button class="btn btn-ghost" onclick="closeTodoEditor()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveTodo()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    let hideDone = BLOOM.get('todo_hide_done', false);
+
+    function toggleHideDone() {
+      hideDone = !hideDone;
+      BLOOM.set('todo_hide_done', hideDone);
+      updateSwitch();
+      render();
+    }
+    function updateSwitch() {
+      document.getElementById('hide-done').classList.toggle('on', hideDone);
+    }
+
+    function quickAdd() {
+      const input = document.getElementById('quick-add');
+      const v = input.value.trim();
+      if (!v) return;
+      BLOOM.addTodo({ title: v, dueDate: BLOOM.today(), priority: '', done: false });
+      input.value = '';
+      toast('Added 🌱', 'success');
+      render();
+    }
+
+    function group(todos) {
+      const today = BLOOM.today();
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+      const tomorrowStr = tomorrow.toISOString().slice(0,10);
+      const groups = { 'No date': [], 'Today': [], 'Tomorrow': [], 'Upcoming': [], 'Completed': [] };
+      todos.forEach(t => {
+        if (t.done) { groups['Completed'].push(t); return; }
+        if (!t.dueDate) { groups['No date'].push(t); return; }
+        if (t.dueDate === today) groups['Today'].push(t);
+        else if (t.dueDate === tomorrowStr) groups['Tomorrow'].push(t);
+        else if (t.dueDate > tomorrowStr) groups['Upcoming'].push(t);
+        else groups['Today'].push(t); // overdue lands here after carryover, but defensively
+      });
+      // sort within groups (priority order: high > medium > low > none)
+      ['Today','Tomorrow','Upcoming','No date'].forEach(g => {
+        const order = { high: 0, medium: 1, low: 2, '': 3 };
+        groups[g].sort((a,b) => (order[a.priority ?? '']||3) - (order[b.priority ?? '']||3) || (a.dueDate||'').localeCompare(b.dueDate||''));
+      });
+      return groups;
+    }
+
+    function render() {
+      BLOOM.carryOverTodos();
+      const pf = document.getElementById('filter-priority').value;
+      let arr = BLOOM.getTodos();
+      if (pf) arr = arr.filter(t => t.priority === pf);
+      if (hideDone) arr = arr.filter(t => !t.done);
+      const groups = group(arr);
+      const order = ['Today','Tomorrow','Upcoming','No date','Completed'];
+      const emojis = { 'Today':'🌸','Tomorrow':'🌿','Upcoming':'🌱','No date':'🍃','Completed':'✨' };
+      let html = '';
+      order.forEach(g => {
+        if (groups[g].length === 0) return;
+        html += `<h3 class="todo-group-title">${emojis[g]} ${g} <span class="count">${groups[g].length}</span></h3>`;
+        html += `<div class="todo-list">` + groups[g].map(td => `
+          <div class="todo-item${td.done ? ' done' : ''}" onclick="if(!event.target.closest('.todo-actions') && !event.target.closest('.todo-check')) openTodoEditor('${td.id}')" style="cursor:pointer;">
+            <button class="todo-check" onclick="event.stopPropagation(); toggleTodo('${td.id}')">${ICONS.check}</button>
+            <div class="todo-content">
+              <div class="todo-title">${escapeHtml(td.title)}</div>
+              <div class="todo-meta">
+                ${td.priority ? `<span class="todo-priority ${td.priority}">${td.priority}</span>` : ''}
+                ${td.dueDate ? `<span>📅 ${fmtDateShort(td.dueDate)}</span>` : ''}
+                ${td.tag ? `<span class="chip">${escapeHtml(td.tag)}</span>` : ''}
+                ${td.carriedOver ? `<span>↪ carried over</span>` : ''}
+                ${td.notes ? `<span>📝</span>` : ''}
+              </div>
+            </div>
+            <div class="todo-actions">
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteTodo('${td.id}')">${ICONS.trash}</button>
+            </div>
+          </div>
+        `).join('') + `</div>`;
+      });
+      const all = BLOOM.getTodos();
+      if (all.length === 0) html = '<div class="empty-state card">🌱<br/>No tasks yet — quick-add one above, or hit the + button.</div>';
+      document.getElementById('todo-groups').innerHTML = html;
+    }
+    function toggleTodo(id) {
+      const t = BLOOM.getTodos().find(x => x.id === id);
+      if (!t) return;
+      BLOOM.updateTodo(id, { done: !t.done });
+      render();
+    }
+    function deleteTodo(id) {
+      if (confirm('Delete this task?')) { BLOOM.deleteTodo(id); toast('Task removed 🌿'); render(); }
+    }
+
+    function openTodoEditor(id) {
+      const m = document.getElementById('td-modal');
+      const t = id ? BLOOM.getTodos().find(x => x.id === id) : null;
+      document.getElementById('td-modal-title').textContent = t ? '✏️ Edit task' : '🌿 New task';
+      document.getElementById('td-id').value = t ? t.id : '';
+      document.getElementById('td-title').value = t ? t.title : '';
+      document.getElementById('td-date').value = t ? (t.dueDate || '') : BLOOM.today();
+      document.getElementById('td-priority').value = t ? (t.priority || '') : '';
+      document.getElementById('td-tag').value = t ? (t.tag || '') : '';
+      document.getElementById('td-notes').value = t ? (t.notes || '') : '';
+      document.getElementById('td-delete').classList.toggle('hidden', !t);
+      m.classList.add('open');
+      setTimeout(() => document.getElementById('td-title').focus(), 60);
+    }
+    function closeTodoEditor() { document.getElementById('td-modal').classList.remove('open'); }
+    function saveTodo() {
+      const id = document.getElementById('td-id').value;
+      const data = {
+        title: document.getElementById('td-title').value.trim(),
+        dueDate: document.getElementById('td-date').value || null,
+        priority: document.getElementById('td-priority').value,
+        tag: document.getElementById('td-tag').value.trim(),
+        notes: document.getElementById('td-notes').value
+      };
+      if (!data.title) return toast('Please enter a title 🌱');
+      if (id) { BLOOM.updateTodo(id, data); toast('Updated 🌿', 'success'); }
+      else { data.done = false; BLOOM.addTodo(data); toast('Task added 🌸', 'success'); }
+      closeTodoEditor();
+      render();
+    }
+    function deleteTodoConfirm() {
+      const id = document.getElementById('td-id').value;
+      if (id && confirm('Delete this task?')) {
+        BLOOM.deleteTodo(id); closeTodoEditor(); toast('Task removed 🌿'); render();
+      }
+    }
+    document.getElementById('td-modal').addEventListener('click', (e) => { if (e.target.id === 'td-modal') closeTodoEditor(); });
+
+    window.refreshPage = render;
+    renderShell('todo');
+    updateSwitch();
+    render();
+  </script>
+</body>
+</html>

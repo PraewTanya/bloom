@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Projects</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <!-- LIST VIEW -->
+      <div id="list-view">
+        <div class="page-header">
+          <div>
+            <h1>📁 Projects</h1>
+            <div class="subtitle">Bigger arcs of your life — broken into doable pieces.</div>
+          </div>
+          <button class="btn btn-primary" onclick="openProjectEditor()">+ New project</button>
+        </div>
+
+        <div class="filter-bar">
+          <input id="q" class="input" placeholder="Search..." style="flex:1; min-width:220px;" oninput="renderList()">
+          <select id="f-status" class="select" onchange="renderList()" style="min-width:160px;">
+            <option value="">All statuses</option>
+            <option value="planning">Planning</option>
+            <option value="progress">In progress</option>
+            <option value="hold">On hold</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+        <div id="list"></div>
+      </div>
+
+      <!-- DETAIL VIEW -->
+      <div id="detail-view" style="display:none;">
+        <div class="page-header">
+          <div>
+            <button class="back-btn" onclick="goList()" style="margin-bottom:8px;">${''}</button>
+            <h1 id="d-name">Project</h1>
+            <div class="subtitle" id="d-desc"></div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" onclick="openProjectEditor(currentId)">Edit</button>
+          </div>
+        </div>
+
+        <div class="grid grid-3" style="margin-bottom:24px;">
+          <div class="stat-card">
+            <span class="stat-label">Status</span>
+            <span class="stat-value" id="d-status">—</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Progress</span>
+            <span class="stat-value" id="d-progress">0%</span>
+            <div class="progress-bar" style="background:var(--lavender-soft); height:6px; border-radius:99px; overflow:hidden; margin-top:6px;"><div id="d-progress-bar" style="height:100%; width:0%; background:linear-gradient(90deg, var(--blush), var(--rose));"></div></div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Target date</span>
+            <span class="stat-value" id="d-target" style="font-size:1.2rem;">—</span>
+            <span class="stat-hint" id="d-target-hint"></span>
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🎯 Milestones</div>
+              <button class="btn btn-primary btn-sm" onclick="addMilestone()">+</button>
+            </div>
+            <div id="milestones"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">📝 Notes</div>
+            <textarea id="proj-notes" class="textarea" style="min-height:200px;" placeholder="Anything you want to remember about this project..." onblur="saveNotes()"></textarea>
+          </div>
+        </div>
+
+        <div class="card mt-2">
+          <div class="card-title">📋 Kanban board</div>
+          <div class="kanban" id="kanban"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Project editor modal -->
+  <div class="modal-backdrop" id="p-modal">
+    <div class="modal" style="max-width:520px;">
+      <h2 id="p-title">📁 New project</h2>
+      <input type="hidden" id="p-id">
+      <div class="field"><label>Name</label><input id="f-name" class="input"></div>
+      <div class="field"><label>Description</label><textarea id="f-desc" class="textarea" style="min-height:80px;"></textarea></div>
+      <div class="row">
+        <div class="field">
+          <label>Status</label>
+          <select id="f-st" class="select">
+            <option value="planning">Planning</option>
+            <option value="progress">In progress</option>
+            <option value="hold">On hold</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Color</label>
+          <div class="color-picker" id="f-color"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Start date</label><input id="f-start" class="input" type="date"></div>
+        <div class="field"><label>Target date</label><input id="f-target" class="input" type="date"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="p-del" onclick="delProject()">Delete</button>
+        <button class="btn btn-ghost" onclick="closeProject()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveProject()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kanban card editor -->
+  <div class="modal-backdrop" id="k-modal">
+    <div class="modal" style="max-width:480px;">
+      <h2 id="k-title">📋 New card</h2>
+      <input type="hidden" id="k-id">
+      <input type="hidden" id="k-col">
+      <div class="field"><label>Title</label><input id="kf-title" class="input"></div>
+      <div class="field"><label>Notes</label><textarea id="kf-notes" class="textarea"></textarea></div>
+      <div class="row">
+        <div class="field"><label>Due date (optional)</label><input id="kf-due" class="input" type="date"></div>
+        <div class="field">
+          <label>Column</label>
+          <select id="kf-column" class="select">
+            <option value="todo">To Do</option>
+            <option value="doing">Doing</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="k-del" onclick="delCard()">Delete</button>
+        <button class="btn btn-ghost" onclick="closeCard()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveCard()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Milestone editor -->
+  <div class="modal-backdrop" id="ms-modal">
+    <div class="modal" style="max-width:420px;">
+      <h2>🎯 Milestone</h2>
+      <input type="hidden" id="ms-id">
+      <div class="field"><label>Title</label><input id="ms-title" class="input"></div>
+      <div class="field"><label>Due date (optional)</label><input id="ms-due" class="input" type="date"></div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="ms-del" onclick="delMilestone()">Delete</button>
+        <button class="btn btn-ghost" onclick="closeMs()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveMilestone()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS = 'projects';
+    const COLORS = ['#F8C8DC','#FFD8B1','#D8BFD8','#C8E6C9','#FFCCBC','#B5EAD7','#FFDAC1'];
+    let currentId = null;
+    let pickedColor = COLORS[0];
+    let saveNotesTimer = null;
+
+    function statusClass(s) { return 'proj-status-' + (s === 'progress' ? 'progress' : s === 'hold' ? 'hold' : s === 'done' ? 'done' : 'planning'); }
+    function statusLabel(s) { return s === 'progress' ? 'In progress' : s === 'hold' ? 'On hold' : s === 'done' ? 'Done' : 'Planning'; }
+    function buildColorPicker() {
+      const c = document.getElementById('f-color');
+      c.innerHTML = COLORS.map(col => `<button type="button" style="background:${col};" data-c="${col}" onclick="pickColor('${col}')" class="${col===pickedColor?'selected':''}"></button>`).join('');
+    }
+    function pickColor(c) {
+      pickedColor = c;
+      document.querySelectorAll('#f-color button').forEach(b => b.classList.toggle('selected', b.dataset.c === c));
+    }
+
+    function project(id) { return BLOOM.getCollection(NS).find(x => x.id === id); }
+    function calcProgress(p) {
+      if (!p) return 0;
+      const cards = (p.cards || []);
+      const ms = (p.milestones || []);
+      const total = cards.length + ms.length;
+      if (total === 0) return 0;
+      const done = cards.filter(c => c.column === 'done').length + ms.filter(m => m.done).length;
+      return Math.round((done / total) * 100);
+    }
+
+    function renderList() {
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      const fs = document.getElementById('f-status').value;
+      let items = BLOOM.getCollection(NS);
+      if (fs) items = items.filter(x => x.status === fs);
+      if (q) items = items.filter(x => (x.name||'').toLowerCase().includes(q) || (x.description||'').toLowerCase().includes(q));
+      items.sort((a,b) => (b.createdAt||0)-(a.createdAt||0));
+      const box = document.getElementById('list');
+      if (items.length === 0) {
+        box.innerHTML = '<div class="card empty-state">📁<br/>No projects yet. Start a new one to break it into doable pieces.</div>';
+        return;
+      }
+      box.innerHTML = items.map(x => {
+        const prog = calcProgress(x);
+        return `<div class="card proj-list-card" style="border-left-color:${x.color || 'var(--rose)'};" onclick="goDetail('${x.id}')">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+              <div style="font-family:var(--font-display); font-size:1.25rem;">${escapeHtml(x.name||'(untitled)')}</div>
+              ${x.description ? `<div class="text-muted" style="margin-top:2px; -webkit-line-clamp:1; display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(x.description)}</div>` : ''}
+              <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+                <span class="proj-status ${statusClass(x.status)}">${statusLabel(x.status)}</span>
+                ${x.target ? `<span class="chip">🎯 ${fmtDateShort(x.target)}</span>` : ''}
+              </div>
+            </div>
+            <div style="min-width:120px;">
+              <div style="font-family:var(--font-display); font-size:1.4rem; color:var(--rose); text-align:right;">${prog}%</div>
+              <div style="background:var(--lavender-soft); height:6px; border-radius:99px; overflow:hidden;"><div style="height:100%; width:${prog}%; background:linear-gradient(90deg, var(--blush), var(--rose));"></div></div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function goDetail(id) {
+      currentId = id;
+      document.getElementById('list-view').style.display = 'none';
+      document.getElementById('detail-view').style.display = 'block';
+      // wire back button icon
+      document.querySelector('#detail-view .back-btn').innerHTML = ICONS.chevronL + '<span>All projects</span>';
+      renderDetail();
+    }
+    function goList() {
+      currentId = null;
+      document.getElementById('list-view').style.display = 'block';
+      document.getElementById('detail-view').style.display = 'none';
+      renderList();
+    }
+
+    function renderDetail() {
+      const p = project(currentId);
+      if (!p) return goList();
+      document.getElementById('d-name').textContent = p.name || '(untitled)';
+      document.getElementById('d-desc').textContent = p.description || '';
+      document.getElementById('d-status').innerHTML = `<span class="proj-status ${statusClass(p.status)}" style="font-size:0.9rem; padding:6px 14px;">${statusLabel(p.status)}</span>`;
+      const prog = calcProgress(p);
+      document.getElementById('d-progress').textContent = prog + '%';
+      document.getElementById('d-progress-bar').style.width = prog + '%';
+      document.getElementById('d-target').textContent = p.target ? fmtDateShort(p.target) : '—';
+      if (p.target) {
+        const days = Math.ceil((new Date(p.target) - new Date()) / 86400000);
+        document.getElementById('d-target-hint').textContent = days > 0 ? `${days} day${days===1?'':'s'} to go` : days === 0 ? 'today' : `${-days} day${-days===1?'':'s'} past`;
+      } else document.getElementById('d-target-hint').textContent = 'No target set';
+
+      // milestones
+      const msBox = document.getElementById('milestones');
+      const ms = p.milestones || [];
+      if (ms.length === 0) msBox.innerHTML = '<div class="empty-state" style="padding:18px;">No milestones yet 🎯</div>';
+      else msBox.innerHTML = ms.map(m => `<div class="milestone-row ${m.done?'done':''}">
+        <button class="milestone-check" onclick="toggleMilestone('${m.id}')">${ICONS.check}</button>
+        <div style="flex:1;" onclick="openMilestone('${m.id}')" style="cursor:pointer;">
+          <div class="milestone-title" style="font-weight:600;">${escapeHtml(m.title)}</div>
+          ${m.due ? `<div class="text-muted" style="font-size:0.78rem;">🗓 ${fmtDateShort(m.due)}</div>` : ''}
+        </div>
+      </div>`).join('');
+
+      // notes
+      document.getElementById('proj-notes').value = p.notes || '';
+
+      // kanban
+      const cards = p.cards || [];
+      const cols = ['todo','doing','done'];
+      const labels = { todo: '🌱 To Do', doing: '🌿 Doing', done: '🌸 Done' };
+      const kb = document.getElementById('kanban');
+      kb.innerHTML = cols.map(col => {
+        const colCards = cards.filter(c => c.column === col).sort((a,b) => (a.order||0)-(b.order||0));
+        return `<div class="kanban-col" data-col="${col}" ondragover="event.preventDefault(); this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="dropCard(event,'${col}')">
+          <h3>${labels[col]}<span class="count">${colCards.length}</span></h3>
+          <div style="flex:1;">${colCards.map(c => `
+            <div class="kanban-card" draggable="true" ondragstart="dragStart(event,'${c.id}')" ondragend="this.classList.remove('dragging')" onclick="openCard('${c.id}')">
+              <div class="ttl">${escapeHtml(c.title)}</div>
+              ${c.due || c.notes ? `<div class="meta">${c.due?`🗓 ${fmtDateShort(c.due)}`:''}${c.notes?' 📝':''}</div>` : ''}
+            </div>
+          `).join('')}</div>
+          <button class="kanban-add" onclick="newCard('${col}')">+ Add card</button>
+        </div>`;
+      }).join('');
+    }
+
+    /* ========= project editor ========= */
+    function openProjectEditor(id) {
+      buildColorPicker();
+      const x = id ? project(id) : null;
+      document.getElementById('p-title').textContent = x ? '✏️ Edit project' : '📁 New project';
+      document.getElementById('p-id').value = x ? x.id : '';
+      document.getElementById('f-name').value = x ? (x.name || '') : '';
+      document.getElementById('f-desc').value = x ? (x.description || '') : '';
+      document.getElementById('f-st').value = x ? (x.status || 'planning') : 'planning';
+      document.getElementById('f-start').value = x ? (x.start || '') : '';
+      document.getElementById('f-target').value = x ? (x.target || '') : '';
+      pickedColor = x ? (x.color || COLORS[0]) : COLORS[0];
+      buildColorPicker();
+      document.getElementById('p-del').classList.toggle('hidden', !x);
+      document.getElementById('p-modal').classList.add('open');
+      setTimeout(() => document.getElementById('f-name').focus(), 60);
+    }
+    function closeProject() { document.getElementById('p-modal').classList.remove('open'); }
+    function saveProject() {
+      const id = document.getElementById('p-id').value;
+      const data = {
+        name: document.getElementById('f-name').value.trim(),
+        description: document.getElementById('f-desc').value,
+        status: document.getElementById('f-st').value,
+        start: document.getElementById('f-start').value || null,
+        target: document.getElementById('f-target').value || null,
+        color: pickedColor
+      };
+      if (!data.name) return toast('Please name the project 🌱');
+      if (id) { BLOOM.updateInCollection(NS, id, data); toast('Updated 🌿', 'success'); }
+      else {
+        const np = BLOOM.addToCollection(NS, { ...data, cards: [], milestones: [], notes: '' });
+        toast('Project started 🌸', 'success');
+        closeProject();
+        return goDetail(np.id);
+      }
+      closeProject();
+      if (currentId) renderDetail(); else renderList();
+    }
+    function delProject() {
+      const id = document.getElementById('p-id').value;
+      if (id && confirm('Delete this project (and all its cards and milestones)?')) {
+        BLOOM.deleteFromCollection(NS, id);
+        closeProject();
+        toast('Removed 🌿');
+        goList();
+      }
+    }
+
+    /* ========= milestones ========= */
+    function addMilestone() { openMilestone(); }
+    function openMilestone(id) {
+      const p = project(currentId);
+      const m = id ? (p.milestones || []).find(x => x.id === id) : null;
+      document.getElementById('ms-id').value = m ? m.id : '';
+      document.getElementById('ms-title').value = m ? (m.title || '') : '';
+      document.getElementById('ms-due').value = m ? (m.due || '') : '';
+      document.getElementById('ms-del').classList.toggle('hidden', !m);
+      document.getElementById('ms-modal').classList.add('open');
+      setTimeout(() => document.getElementById('ms-title').focus(), 60);
+    }
+    function closeMs() { document.getElementById('ms-modal').classList.remove('open'); }
+    function saveMilestone() {
+      const id = document.getElementById('ms-id').value;
+      const title = document.getElementById('ms-title').value.trim();
+      const due = document.getElementById('ms-due').value;
+      if (!title) return toast('Please name the milestone 🌱');
+      const p = project(currentId);
+      const ms = p.milestones ? p.milestones.slice() : [];
+      if (id) {
+        const i = ms.findIndex(x => x.id === id);
+        if (i >= 0) ms[i] = { ...ms[i], title, due };
+      } else {
+        ms.push({ id: BLOOM.uid(), title, due, done: false });
+      }
+      BLOOM.updateInCollection(NS, currentId, { milestones: ms });
+      closeMs();
+      renderDetail();
+    }
+    function toggleMilestone(id) {
+      const p = project(currentId);
+      const ms = (p.milestones || []).map(m => m.id === id ? { ...m, done: !m.done } : m);
+      BLOOM.updateInCollection(NS, currentId, { milestones: ms });
+      renderDetail();
+    }
+    function delMilestone() {
+      const id = document.getElementById('ms-id').value;
+      if (!id) return;
+      if (!confirm('Delete this milestone?')) return;
+      const p = project(currentId);
+      const ms = (p.milestones || []).filter(m => m.id !== id);
+      BLOOM.updateInCollection(NS, currentId, { milestones: ms });
+      closeMs();
+      renderDetail();
+    }
+
+    /* ========= notes ========= */
+    function saveNotes() {
+      const v = document.getElementById('proj-notes').value;
+      BLOOM.updateInCollection(NS, currentId, { notes: v });
+    }
+
+    /* ========= kanban cards ========= */
+    let draggingId = null;
+    function dragStart(e, id) {
+      draggingId = id;
+      e.target.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+    function dropCard(e, col) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('over');
+      if (!draggingId) return;
+      const p = project(currentId);
+      const cards = (p.cards || []).map(c => c.id === draggingId ? { ...c, column: col } : c);
+      BLOOM.updateInCollection(NS, currentId, { cards });
+      draggingId = null;
+      renderDetail();
+    }
+    function newCard(col) { openCard(null, col); }
+    function openCard(id, col) {
+      const p = project(currentId);
+      const c = id ? (p.cards || []).find(x => x.id === id) : null;
+      document.getElementById('k-title').textContent = c ? '✏️ Edit card' : '📋 New card';
+      document.getElementById('k-id').value = c ? c.id : '';
+      document.getElementById('kf-title').value = c ? (c.title || '') : '';
+      document.getElementById('kf-notes').value = c ? (c.notes || '') : '';
+      document.getElementById('kf-due').value = c ? (c.due || '') : '';
+      document.getElementById('kf-column').value = c ? c.column : (col || 'todo');
+      document.getElementById('k-del').classList.toggle('hidden', !c);
+      document.getElementById('k-modal').classList.add('open');
+      setTimeout(() => document.getElementById('kf-title').focus(), 60);
+    }
+    function closeCard() { document.getElementById('k-modal').classList.remove('open'); }
+    function saveCard() {
+      const id = document.getElementById('k-id').value;
+      const data = {
+        title: document.getElementById('kf-title').value.trim(),
+        notes: document.getElementById('kf-notes').value,
+        due: document.getElementById('kf-due').value || null,
+        column: document.getElementById('kf-column').value
+      };
+      if (!data.title) return toast('Add a title 🌱');
+      const p = project(currentId);
+      const cards = p.cards ? p.cards.slice() : [];
+      if (id) {
+        const i = cards.findIndex(x => x.id === id);
+        if (i >= 0) cards[i] = { ...cards[i], ...data };
+      } else {
+        cards.push({ id: BLOOM.uid(), ...data });
+      }
+      BLOOM.updateInCollection(NS, currentId, { cards });
+      closeCard();
+      renderDetail();
+    }
+    function delCard() {
+      const id = document.getElementById('k-id').value;
+      if (!id || !confirm('Delete this card?')) return;
+      const p = project(currentId);
+      const cards = (p.cards || []).filter(c => c.id !== id);
+      BLOOM.updateInCollection(NS, currentId, { cards });
+      closeCard();
+      renderDetail();
+    }
+
+    document.getElementById('p-modal').addEventListener('click', (e) => { if (e.target.id === 'p-modal') closeProject(); });
+    document.getElementById('k-modal').addEventListener('click', (e) => { if (e.target.id === 'k-modal') closeCard(); });
+    document.getElementById('ms-modal').addEventListener('click', (e) => { if (e.target.id === 'ms-modal') closeMs(); });
+
+    window.refreshPage = () => currentId ? renderDetail() : renderList();
+    renderShell('projects');
+    renderList();
+  </script>
+</body>
+</html>

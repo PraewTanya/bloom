@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Books</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .progress-bar { width: 100%; height: 6px; background: var(--lavender-soft); border-radius: 99px; overflow: hidden; margin-top: 4px; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--blush), var(--rose)); border-radius: 99px; transition: width 0.3s; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>📚 Books</h1>
+          <div class="subtitle">A library of what shaped you.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEditor()">+ Add book</button>
+      </div>
+
+      <div class="grid grid-4" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <span class="stat-label">Read this year</span>
+          <span class="stat-value" id="stat-year">0</span>
+          <span class="stat-hint">Pages turned</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Currently reading</span>
+          <span class="stat-value" id="stat-reading">0</span>
+          <span class="stat-hint">In progress</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">To read</span>
+          <span class="stat-value" id="stat-want">0</span>
+          <span class="stat-hint">On your shelf</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Pages read</span>
+          <span class="stat-value" id="stat-pages">0</span>
+          <span class="stat-hint">All time</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input id="q" class="input" placeholder="Search title, author, quote..." style="flex:1; min-width:220px;" oninput="render()">
+        <select id="f-status" class="select" onchange="render()" style="min-width:160px;">
+          <option value="">All statuses</option>
+          <option value="read">Read</option>
+          <option value="reading">Currently reading</option>
+          <option value="want">Want to read</option>
+        </select>
+        <select id="f-sort" class="select" onchange="render()" style="min-width:160px;">
+          <option value="recent">Recently added</option>
+          <option value="rating">Top rated</option>
+          <option value="title">Title A→Z</option>
+          <option value="author">Author A→Z</option>
+        </select>
+      </div>
+
+      <div id="grid"></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="b-modal">
+    <div class="modal" style="max-width:560px;">
+      <h2 id="b-title">📚 Add book</h2>
+      <input type="hidden" id="b-id">
+      <div class="row">
+        <div class="field" style="flex:2;"><label>Title</label><input id="f-title" class="input"></div>
+        <div class="field" style="flex:1;">
+          <label>Status</label>
+          <select id="f-st" class="select">
+            <option value="want">Want to read</option>
+            <option value="reading">Currently reading</option>
+            <option value="read">Read</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Author</label><input id="f-author" class="input"></div>
+        <div class="field"><label>Genre tags</label><input id="f-genre" class="input" placeholder="fiction, memoir..."></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Pages read</label><input id="f-pages" class="input" type="number" min="0"></div>
+        <div class="field"><label>Total pages</label><input id="f-total" class="input" type="number" min="0"></div>
+      </div>
+      <div class="field">
+        <label>Rating</label>
+        <div class="rating-stars" id="f-rating"></div>
+      </div>
+      <div class="field"><label>Cover image</label><div id="img-pic"></div></div>
+      <div class="field"><label>Favourite quote</label><textarea id="f-quote" class="textarea" style="min-height:60px;" placeholder="A line that stayed with you..."></textarea></div>
+      <div class="field"><label>Review / notes</label><textarea id="f-review" class="textarea"></textarea></div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="b-del" onclick="del()">Delete</button>
+        <button class="btn btn-ghost" onclick="close_()">Cancel</button>
+        <button class="btn btn-primary" onclick="save()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS = 'books';
+    let rating = 0;
+    function renderStars(into, value) {
+      let html = '';
+      for (let i=1;i<=5;i++) html += `<button type="button" class="${i<=value?'on':''}" onclick="pickRating(${i})">★</button>`;
+      into.innerHTML = html;
+    }
+    function pickRating(v) { rating = (rating === v) ? 0 : v; renderStars(document.getElementById('f-rating'), rating); }
+
+    function statusLabel(s) { return s === 'read' ? 'Read' : s === 'reading' ? 'Reading' : 'Want to read'; }
+    function statusClass(s) { return s === 'read' ? 'status-read' : s === 'reading' ? 'status-reading' : 'status-want-to-read'; }
+
+    async function render() {
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      const fs = document.getElementById('f-status').value;
+      const sort = document.getElementById('f-sort').value;
+      let items = BLOOM.getCollection(NS);
+
+      const year = new Date().getFullYear();
+      document.getElementById('stat-year').textContent = items.filter(x => x.status === 'read' && (x.finishedAt || x.createdAt || 0) > new Date(year, 0, 1).getTime()).length;
+      document.getElementById('stat-reading').textContent = items.filter(x => x.status === 'reading').length;
+      document.getElementById('stat-want').textContent = items.filter(x => x.status === 'want').length;
+      document.getElementById('stat-pages').textContent = items.reduce((s,x) => s + (x.pages || (x.status === 'read' ? (x.total || 0) : 0)), 0);
+
+      if (fs) items = items.filter(x => x.status === fs);
+      if (q) items = items.filter(x =>
+        (x.title || '').toLowerCase().includes(q) ||
+        (x.author || '').toLowerCase().includes(q) ||
+        (x.quote || '').toLowerCase().includes(q) ||
+        (x.review || '').toLowerCase().includes(q));
+      if (sort === 'recent') items.sort((a,b) => (b.createdAt||0)-(a.createdAt||0));
+      else if (sort === 'rating') items.sort((a,b) => (b.rating||0)-(a.rating||0));
+      else if (sort === 'title') items.sort((a,b) => (a.title||'').localeCompare(b.title||''));
+      else if (sort === 'author') items.sort((a,b) => (a.author||'').localeCompare(b.author||''));
+
+      const box = document.getElementById('grid');
+      if (items.length === 0) {
+        box.innerHTML = '<div class="card empty-state">📚<br/>No books yet. Add one you read or want to read.</div>';
+        return;
+      }
+      box.innerHTML = '<div class="lib-grid">' + items.map(x => {
+        const pct = x.total && x.pages ? Math.min(100, Math.round((x.pages / x.total) * 100)) : (x.status === 'read' ? 100 : 0);
+        return `
+          <div class="lib-card" onclick="openEditor('${x.id}')">
+            ${x.cover ? `<img class="lib-thumb" alt="" data-img-src="${escapeHtml(x.cover)}" onerror="this.outerHTML='<div class=&quot;lib-thumb&quot;>📖</div>'">` : `<div class="lib-thumb">📖</div>`}
+            <div class="lib-body">
+              <div class="lib-title">${escapeHtml(x.title || '(untitled)')}</div>
+              <div class="lib-sub">${escapeHtml(x.author || '')}</div>
+              ${x.rating ? `<div class="lib-rating">${'★'.repeat(x.rating)}${'☆'.repeat(5-x.rating)}</div>` : ''}
+              ${x.status === 'reading' && x.total ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;"></div></div><div class="lib-sub">${x.pages || 0}/${x.total} pages (${pct}%)</div>` : ''}
+              <div class="lib-meta">
+                <span class="status-chip ${statusClass(x.status)}">${statusLabel(x.status)}</span>
+              </div>
+            </div>
+          </div>`;
+      }).join('') + '</div>';
+      await resolveAllImages();
+    }
+
+    async function openEditor(id) {
+      const x = id ? BLOOM.getCollection(NS).find(i=>i.id===id) : null;
+      document.getElementById('b-title').textContent = x ? '✏️ Edit book' : '📚 Add book';
+      document.getElementById('b-id').value = x ? x.id : '';
+      document.getElementById('f-title').value = x ? (x.title || '') : '';
+      document.getElementById('f-author').value = x ? (x.author || '') : '';
+      document.getElementById('f-st').value = x ? (x.status || 'want') : 'want';
+      document.getElementById('f-genre').value = x ? (x.genre || []).join(', ') : '';
+      document.getElementById('f-pages').value = x ? (x.pages || '') : '';
+      document.getElementById('f-total').value = x ? (x.total || '') : '';
+      await ImagePicker.init('img-pic', x ? (x.cover || '') : '');
+      document.getElementById('f-quote').value = x ? (x.quote || '') : '';
+      document.getElementById('f-review').value = x ? (x.review || '') : '';
+      rating = x ? (x.rating || 0) : 0;
+      renderStars(document.getElementById('f-rating'), rating);
+      document.getElementById('b-del').classList.toggle('hidden', !x);
+      document.getElementById('b-modal').classList.add('open');
+      setTimeout(() => document.getElementById('f-title').focus(), 60);
+    }
+    function close_() { document.getElementById('b-modal').classList.remove('open'); }
+    function save() {
+      const id = document.getElementById('b-id').value;
+      const existing = id ? BLOOM.getCollection(NS).find(i=>i.id===id) : null;
+      const data = {
+        title: document.getElementById('f-title').value.trim(),
+        author: document.getElementById('f-author').value.trim(),
+        status: document.getElementById('f-st').value,
+        genre: document.getElementById('f-genre').value.split(',').map(t=>t.trim()).filter(Boolean),
+        pages: parseInt(document.getElementById('f-pages').value || '0', 10) || 0,
+        total: parseInt(document.getElementById('f-total').value || '0', 10) || 0,
+        cover: ImagePicker.get('img-pic'),
+        quote: document.getElementById('f-quote').value,
+        review: document.getElementById('f-review').value,
+        rating
+      };
+      if (data.status === 'read' && !existing?.finishedAt) data.finishedAt = Date.now();
+      if (!data.title) return toast('Please add a title 🌱');
+      if (id) { BLOOM.updateInCollection(NS, id, data); toast('Updated 🌿', 'success'); }
+      else { BLOOM.addToCollection(NS, data); toast('Book added 📚', 'success'); }
+      close_();
+      render();
+    }
+    async function del() {
+      const id = document.getElementById('b-id').value;
+      if (id && confirm('Delete this book?')) {
+        const x = BLOOM.getCollection(NS).find(i=>i.id===id);
+        if (x) await maybeDeleteLocalImage(x.cover);
+        BLOOM.deleteFromCollection(NS, id); close_(); toast('Removed 🌿'); render();
+      }
+    }
+    document.getElementById('b-modal').addEventListener('click', (e) => { if (e.target.id === 'b-modal') close_(); });
+
+    window.refreshPage = render;
+    renderShell('books');
+    render();
+  </script>
+</body>
+</html>

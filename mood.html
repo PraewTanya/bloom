@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Mood Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .mood-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .mood-cell { aspect-ratio: 1; background: var(--bg); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; border: 1.5px solid transparent; position: relative; }
+    .mood-cell:hover { transform: translateY(-2px); border-color: var(--rose); }
+    .mood-cell.other-month { opacity: 0.3; }
+    .mood-cell.today { border-color: var(--rose); box-shadow: var(--shadow-sm); }
+    .mood-cell .day { font-size: 0.7rem; color: var(--ink-faint); position: absolute; top: 4px; left: 6px; font-weight: 700; }
+    .mood-cell.has-mood .day { color: white; mix-blend-mode: difference; }
+    .mood-cell .emoji { font-size: 1.6rem; line-height: 1; }
+    .mood-cell.future { opacity: 0.35; pointer-events: none; }
+    .mood-picker { display: flex; gap: 12px; justify-content: center; margin: 14px 0; flex-wrap: wrap; }
+    .mood-option { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; padding: 10px; border-radius: 14px; border: 2px solid transparent; transition: all 0.15s; min-width: 70px; }
+    .mood-option:hover { background: var(--blush-soft); }
+    .mood-option.selected { border-color: var(--rose); background: var(--blush-soft); transform: scale(1.05); }
+    .mood-option .em { font-size: 2.2rem; line-height: 1; }
+    .mood-option .lbl { font-size: 0.78rem; font-weight: 700; color: var(--ink-soft); }
+    .mood-legend { display: flex; gap: 16px; align-items: center; justify-content: center; flex-wrap: wrap; padding: 12px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 16px; }
+    .mood-legend .item { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; }
+    .mood-legend .sw { width: 18px; height: 18px; border-radius: 6px; }
+    .trend-bars { display: flex; gap: 2px; align-items: flex-end; height: 80px; padding: 8px 0; }
+    .trend-bars .bar { flex: 1; min-width: 6px; border-radius: 4px 4px 0 0; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>💗 Mood Tracker</h1>
+          <div class="subtitle">A gentle weather report for your inner sky.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openMood(BLOOM.today())">Check in today</button>
+      </div>
+
+      <div class="mood-legend">
+        <div class="item"><div class="sw" style="background:var(--mood-5);"></div>Joyful</div>
+        <div class="item"><div class="sw" style="background:var(--mood-4);"></div>Happy</div>
+        <div class="item"><div class="sw" style="background:var(--mood-3);"></div>Meh</div>
+        <div class="item"><div class="sw" style="background:var(--mood-2);"></div>Angry</div>
+        <div class="item"><div class="sw" style="background:var(--mood-1);"></div>Sad</div>
+      </div>
+
+      <div class="calendar-toolbar">
+        <button class="icon-btn" onclick="changeMonth(-1)"></button>
+        <h2 class="month-name" id="month-name">Month</h2>
+        <button class="icon-btn" onclick="changeMonth(1)"></button>
+        <button class="btn btn-secondary btn-sm" onclick="goToday()">Today</button>
+      </div>
+
+      <div class="card">
+        <div id="mood-cal"></div>
+      </div>
+
+      <div class="grid grid-2 mt-2">
+        <div class="card">
+          <div class="card-title">📊 This month at a glance</div>
+          <div id="month-summary"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">📈 Trend (last 30 days)</div>
+          <div id="trend"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Mood entry modal -->
+  <div class="modal-backdrop" id="m-modal">
+    <div class="modal">
+      <h2 id="m-modal-title">💗 How are you?</h2>
+      <input type="hidden" id="m-date">
+      <div class="mood-picker" id="m-picker"></div>
+      <div class="field">
+        <label>A word or two (optional)</label>
+        <input id="m-note" class="input" placeholder="Why does it feel this way?">
+      </div>
+      <div class="field">
+        <label>Tags (optional, comma-separated)</label>
+        <input id="m-tags" class="input" placeholder="work, family, weather, health...">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="m-delete" onclick="deleteMoodConfirm()">Remove</button>
+        <button class="btn btn-ghost" onclick="closeMood()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveMood()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const MOODS = [
+      { v: 1, em: '😢', lbl: 'Sad', color: 'var(--mood-1)' },
+      { v: 2, em: '😠', lbl: 'Angry', color: 'var(--mood-2)' },
+      { v: 3, em: '😐', lbl: 'Meh', color: 'var(--mood-3)' },
+      { v: 4, em: '🙂', lbl: 'Happy', color: 'var(--mood-4)' },
+      { v: 5, em: '🥰', lbl: 'Joyful', color: 'var(--mood-5)' },
+    ];
+    let view = new Date();
+    let pickedMood = null;
+
+    function pad(n){return n<10?'0'+n:''+n;}
+    function ymd(y,m,d){return `${y}-${pad(m+1)}-${pad(d)}`;}
+
+    function setNavBtns() {
+      document.querySelectorAll('.calendar-toolbar .icon-btn').forEach((b,i) => {
+        b.innerHTML = i === 0 ? ICONS.chevronL : ICONS.chevronR;
+      });
+    }
+    function changeMonth(d) { view.setMonth(view.getMonth()+d); render(); }
+    function goToday() { view = new Date(); render(); }
+
+    function render() {
+      document.getElementById('month-name').textContent = view.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+      const y = view.getFullYear(), m = view.getMonth();
+      const startDow = new Date(y, m, 1).getDay();
+      const daysInMonth = new Date(y, m+1, 0).getDate();
+      const daysInPrev = new Date(y, m, 0).getDate();
+      const today = BLOOM.today();
+      const moods = BLOOM.getMoods();
+      const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      let html = '<div class="mood-grid" style="margin-bottom:6px;">';
+      dow.forEach(n => html += `<div class="cal-dow" style="padding:4px 0;">${n}</div>`);
+      html += '</div><div class="mood-grid">';
+      for (let i=startDow-1;i>=0;i--) html += `<div class="mood-cell other-month"><span class="day">${daysInPrev-i}</span></div>`;
+      for (let i=1;i<=daysInMonth;i++) {
+        const k = ymd(y,m,i);
+        const md = moods[k];
+        const isToday = k === today;
+        const future = k > today;
+        const mood = md ? MOODS.find(x=>x.v===md.mood) : null;
+        html += `<div class="mood-cell ${future?'future':''} ${md?'has-mood':''} ${isToday?'today':''}" style="${mood?`background:${mood.color};`:''}" onclick="openMood('${k}')">
+          <span class="day">${i}</span>
+          ${mood ? `<span class="emoji">${mood.em}</span>` : ''}
+        </div>`;
+      }
+      html += '</div>';
+      document.getElementById('mood-cal').innerHTML = html;
+
+      // summary this month
+      const counts = [0,0,0,0,0,0];
+      let total = 0;
+      for (let i=1;i<=daysInMonth;i++) {
+        const md = moods[ymd(y,m,i)];
+        if (md) { counts[md.mood]++; total++; }
+      }
+      const sum = document.getElementById('month-summary');
+      if (total === 0) {
+        sum.innerHTML = '<div class="empty-state">No check-ins yet this month 🌱</div>';
+      } else {
+        const top = counts.map((c,i)=>({c,i})).filter(x=>x.i>=1).sort((a,b)=>b.c-a.c)[0];
+        const topMood = MOODS.find(x=>x.v===top.i);
+        const avg = (counts.reduce((s,c,i)=>s+c*i,0) / total).toFixed(1);
+        sum.innerHTML = `
+          <div class="stat-value" style="font-size:2.4rem;">${topMood.em}</div>
+          <div class="text-muted">Most common: <b>${topMood.lbl}</b></div>
+          <div class="text-muted mt-1">${total} day${total===1?'':'s'} checked in — average ${avg}/5</div>
+        `;
+      }
+
+      // trend last 30 days
+      const trendEl = document.getElementById('trend');
+      const bars = [];
+      for (let i=29;i>=0;i--) {
+        const d = new Date(); d.setDate(d.getDate()-i);
+        const k = ymd(d.getFullYear(), d.getMonth(), d.getDate());
+        const md = moods[k];
+        const mood = md ? MOODS.find(x=>x.v===md.mood) : null;
+        bars.push({ k, mood, h: md ? (md.mood/5)*100 : 0 });
+      }
+      const totalMoods = bars.filter(x=>x.mood).length;
+      if (totalMoods === 0) {
+        trendEl.innerHTML = '<div class="empty-state">Track your moods to see your trend 🌿</div>';
+      } else {
+        trendEl.innerHTML = `<div class="trend-bars">${bars.map(b => `<div class="bar" style="height:${Math.max(b.h, b.mood?6:2)}%; background:${b.mood ? b.mood.color : 'var(--lavender-soft)'};" title="${b.k}${b.mood?': '+b.mood.lbl:''}"></div>`).join('')}</div>
+        <div class="text-muted" style="font-size:0.78rem; display:flex; justify-content:space-between; margin-top:4px;"><span>30 days ago</span><span>Today</span></div>`;
+      }
+    }
+
+    function openMood(date) {
+      if (date > BLOOM.today()) return;
+      const moods = BLOOM.getMoods();
+      const m = moods[date];
+      document.getElementById('m-modal-title').textContent = m ? '💗 Update mood' : '💗 How are you?';
+      document.getElementById('m-date').value = date;
+      pickedMood = m ? m.mood : null;
+      const pk = document.getElementById('m-picker');
+      pk.innerHTML = MOODS.map(x => `<div class="mood-option ${pickedMood===x.v?'selected':''}" onclick="pickMood(${x.v})" data-v="${x.v}"><span class="em">${x.em}</span><span class="lbl">${x.lbl}</span></div>`).join('');
+      document.getElementById('m-note').value = m ? (m.note || '') : '';
+      document.getElementById('m-tags').value = m ? (m.tags || []).join(', ') : '';
+      document.getElementById('m-delete').classList.toggle('hidden', !m);
+      document.getElementById('m-modal').classList.add('open');
+    }
+    function pickMood(v) {
+      pickedMood = v;
+      document.querySelectorAll('#m-picker .mood-option').forEach(o => o.classList.toggle('selected', parseInt(o.dataset.v)===v));
+    }
+    function closeMood() { document.getElementById('m-modal').classList.remove('open'); }
+    function saveMood() {
+      if (!pickedMood) return toast('Pick a mood first 🌸');
+      const date = document.getElementById('m-date').value;
+      const note = document.getElementById('m-note').value.trim();
+      const tags = document.getElementById('m-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+      BLOOM.setMood(date, { mood: pickedMood, note, tags });
+      toast('Saved 🌸', 'success');
+      closeMood();
+      render();
+    }
+    function deleteMoodConfirm() {
+      const date = document.getElementById('m-date').value;
+      BLOOM.deleteMood(date);
+      toast('Removed 🌿');
+      closeMood();
+      render();
+    }
+    document.getElementById('m-modal').addEventListener('click', (e) => { if (e.target.id === 'm-modal') closeMood(); });
+
+    window.refreshPage = render;
+    renderShell('mood');
+    setNavBtns();
+    render();
+  </script>
+</body>
+</html>

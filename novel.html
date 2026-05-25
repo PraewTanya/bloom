@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Novel Studio</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .write-area { min-height: 400px; font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif; font-size: 1.1rem; line-height: 1.8; padding: 24px; }
+    .inspiration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .insp-card { background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); cursor: pointer; transition: transform 0.15s; position: relative; }
+    .insp-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+    .insp-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display:block; }
+    .insp-card .quote { padding: 14px; min-height: 120px; font-family: var(--font-display); font-style: italic; font-size: 0.95rem; background: linear-gradient(135deg, var(--blush-soft), var(--lavender-soft)); }
+    .insp-card .note { padding: 6px 10px; font-size: 0.78rem; color: var(--ink-soft); }
+    .insp-rm { position: absolute; top: 6px; right: 6px; background: white; border: none; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; opacity: 0; transition: opacity 0.15s; box-shadow: var(--shadow-sm); }
+    .insp-card:hover .insp-rm { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <!-- LIST VIEW -->
+      <div id="list-view">
+        <div class="page-header">
+          <div>
+            <h1>✍️ Novel Studio</h1>
+            <div class="subtitle">A quiet writing room for your stories to grow.</div>
+          </div>
+          <button class="btn btn-primary" onclick="openNovelEditor()">+ New novel</button>
+        </div>
+        <div id="list"></div>
+      </div>
+
+      <!-- DETAIL VIEW -->
+      <div id="detail-view" style="display:none;">
+        <div class="page-header">
+          <div>
+            <button class="back-btn" onclick="goList()" style="margin-bottom:8px;"></button>
+            <h1 id="d-title">Novel</h1>
+            <div class="subtitle" id="d-tag"></div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <span class="word-count-pill" id="d-wc">✍️ 0 words</span>
+            <button class="btn btn-secondary" onclick="openNovelEditor(currentId)">Edit</button>
+          </div>
+        </div>
+
+        <div class="novel-tabs" id="tabs"></div>
+        <div id="tab-content"></div>
+      </div>
+
+      <!-- CHAPTER WRITE VIEW -->
+      <div id="write-view" style="display:none;">
+        <div class="page-header">
+          <div>
+            <button class="back-btn" onclick="backToNovel()" style="margin-bottom:8px;"></button>
+            <h1 id="w-title">Chapter</h1>
+            <div class="subtitle" id="w-novel"></div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span class="word-count-pill" id="w-wc">0 words</span>
+            <button class="btn btn-secondary" onclick="renameChapter()">Rename</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteChapter()">Delete</button>
+          </div>
+        </div>
+        <div class="card" style="padding:0;">
+          <textarea id="chapter-body" class="textarea write-area" placeholder="Begin..."></textarea>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Novel editor modal -->
+  <div class="modal-backdrop" id="n-modal">
+    <div class="modal">
+      <h2 id="n-modal-title">✍️ New novel</h2>
+      <input type="hidden" id="n-id">
+      <div class="field"><label>Title</label><input id="f-title" class="input" placeholder="Working title..."></div>
+      <div class="field"><label>One-line premise / tagline</label><input id="f-premise" class="input" placeholder="What's this story about, in a sentence?"></div>
+      <div class="field"><label>Synopsis</label><textarea id="f-synopsis" class="textarea" style="min-height:120px;"></textarea></div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="n-del" onclick="delNovel()">Delete</button>
+        <button class="btn btn-ghost" onclick="closeNovel()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveNovel()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character editor -->
+  <div class="modal-backdrop" id="ch-modal">
+    <div class="modal" style="max-width:480px;">
+      <h2 id="ch-title">👤 Character</h2>
+      <input type="hidden" id="ch-id">
+      <div class="row">
+        <div class="field" style="flex:2;"><label>Name</label><input id="cf-name" class="input"></div>
+        <div class="field" style="flex:1;"><label>Role</label><input id="cf-role" class="input" placeholder="Protagonist..."></div>
+      </div>
+      <div class="field"><label>Traits</label><input id="cf-traits" class="input" placeholder="brave, anxious, witty..."></div>
+      <div class="field"><label>Backstory / notes</label><textarea id="cf-back" class="textarea" style="min-height:120px;"></textarea></div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="ch-del" onclick="delChar()">Delete</button>
+        <button class="btn btn-ghost" onclick="closeChar()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveChar()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chapter editor (title only) -->
+  <div class="modal-backdrop" id="cp-modal">
+    <div class="modal" style="max-width:420px;">
+      <h2 id="cp-title">📖 New chapter</h2>
+      <input type="hidden" id="cp-id">
+      <div class="field"><label>Chapter title</label><input id="cpf-title" class="input"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeChap()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveChap()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inspiration editor -->
+  <div class="modal-backdrop" id="in-modal">
+    <div class="modal">
+      <h2>🌸 Add inspiration</h2>
+      <div class="field">
+        <label>Type</label>
+        <select id="if-type" class="select" onchange="onInTypeChange()">
+          <option value="image">Image</option>
+          <option value="quote">Quote</option>
+        </select>
+      </div>
+      <div class="field" id="in-img-field">
+        <label>Image</label>
+        <div id="img-pic"></div>
+      </div>
+      <div class="field" id="in-quote-field" style="display:none;">
+        <label>Quote</label>
+        <textarea id="if-quote" class="textarea" style="min-height:100px;" placeholder="A line, a vision, a thread..."></textarea>
+      </div>
+      <div class="field"><label>Note (optional)</label><input id="if-note" class="input"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeIn()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveIn()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS = 'novels';
+    let currentId = null;
+    let currentTab = 'overview';
+    let currentChapterId = null;
+    let writeTimer = null;
+
+    function countWords(s) { return (s || '').trim() ? (s.trim().match(/\S+/g) || []).length : 0; }
+    function novel(id) { return BLOOM.getCollection(NS).find(x => x.id === id); }
+    function totalWords(n) {
+      if (!n) return 0;
+      return (n.chapters || []).reduce((s, c) => s + countWords(c.body), 0);
+    }
+
+    /* ============== LIST ============== */
+    function renderList() {
+      const items = BLOOM.getCollection(NS).slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      const box = document.getElementById('list');
+      if (items.length === 0) {
+        box.innerHTML = '<div class="card empty-state">✍️<br/>No novels yet. Begin your first one.</div>';
+        return;
+      }
+      box.innerHTML = items.map(n => {
+        const wc = totalWords(n);
+        return `<div class="card proj-list-card" style="border-left-color:var(--rose);" onclick="goDetail('${n.id}')">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+              <div style="font-family:var(--font-display); font-size:1.4rem;">${escapeHtml(n.title||'(untitled)')}</div>
+              ${n.premise ? `<div class="text-muted" style="font-style:italic; margin-top:4px;">"${escapeHtml(n.premise)}"</div>` : ''}
+              <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                <span class="chip">${(n.chapters||[]).length} chapters</span>
+                <span class="chip">${(n.characters||[]).length} characters</span>
+                <span class="word-count-pill">✍️ ${wc.toLocaleString()} words</span>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    /* ============== DETAIL ============== */
+    function goDetail(id) {
+      currentId = id;
+      currentTab = 'overview';
+      document.getElementById('list-view').style.display = 'none';
+      document.getElementById('detail-view').style.display = 'block';
+      document.getElementById('write-view').style.display = 'none';
+      document.querySelector('#detail-view .back-btn').innerHTML = ICONS.chevronL + '<span>All novels</span>';
+      renderDetail();
+    }
+    function goList() {
+      currentId = null;
+      currentChapterId = null;
+      document.getElementById('list-view').style.display = 'block';
+      document.getElementById('detail-view').style.display = 'none';
+      document.getElementById('write-view').style.display = 'none';
+      renderList();
+    }
+    function renderDetail() {
+      const n = novel(currentId);
+      if (!n) return goList();
+      document.getElementById('d-title').textContent = n.title || '(untitled)';
+      document.getElementById('d-tag').textContent = n.premise || '';
+      document.getElementById('d-wc').textContent = `✍️ ${totalWords(n).toLocaleString()} words`;
+
+      const tabs = [
+        { id: 'overview', label: '📝 Overview' },
+        { id: 'characters', label: '👥 Characters' },
+        { id: 'plot', label: '🗺 Plot & World' },
+        { id: 'chapters', label: '📖 Chapters' },
+        { id: 'inspiration', label: '🌸 Inspiration' }
+      ];
+      document.getElementById('tabs').innerHTML = tabs.map(t =>
+        `<button class="novel-tab ${t.id===currentTab?'active':''}" onclick="switchTab('${t.id}')">${t.label}</button>`
+      ).join('');
+
+      const tc = document.getElementById('tab-content');
+      if (currentTab === 'overview') {
+        tc.innerHTML = `
+          <div class="card">
+            <div class="card-title">📝 Synopsis</div>
+            <div style="white-space:pre-wrap; line-height:1.7; color:var(--ink-soft);">${escapeHtml(n.synopsis || 'No synopsis yet. Click Edit above to add one.')}</div>
+          </div>`;
+      } else if (currentTab === 'characters') {
+        const chars = n.characters || [];
+        tc.innerHTML = `
+          <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+            <button class="btn btn-primary btn-sm" onclick="openChar()">+ Add character</button>
+          </div>
+          ${chars.length === 0 ? '<div class="card empty-state">👥<br/>No characters yet.</div>' : chars.map(c => `
+            <div class="card character-card" onclick="openChar('${c.id}')" style="cursor:pointer;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+                <div style="flex:1;">
+                  <div style="font-family:var(--font-display); font-size:1.2rem;">${escapeHtml(c.name)}</div>
+                  ${c.role ? `<div class="text-muted" style="font-size:0.85rem;">${escapeHtml(c.role)}</div>` : ''}
+                  ${c.traits ? `<div style="margin-top:6px;">${c.traits.split(',').map(t => `<span class="tag-chip">${escapeHtml(t.trim())}</span>`).join(' ')}</div>` : ''}
+                  ${c.back ? `<div style="margin-top:8px; color:var(--ink-soft); -webkit-line-clamp:3; display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(c.back)}</div>` : ''}
+                </div>
+              </div>
+            </div>
+          `).join('')}`;
+      } else if (currentTab === 'plot') {
+        tc.innerHTML = `
+          <div class="grid grid-2">
+            <div class="card">
+              <div class="card-title">🗺 Plot outline</div>
+              <textarea id="plot-area" class="textarea" style="min-height:300px;" placeholder="Acts, beats, chapters — outline your story...">${escapeHtml(n.plot || '')}</textarea>
+              <button class="btn btn-primary btn-sm mt-1" onclick="savePlot()">Save outline</button>
+            </div>
+            <div class="card">
+              <div class="card-title">🌍 World-building notes</div>
+              <textarea id="world-area" class="textarea" style="min-height:300px;" placeholder="Places, rules, lore...">${escapeHtml(n.world || '')}</textarea>
+              <button class="btn btn-primary btn-sm mt-1" onclick="saveWorld()">Save world</button>
+            </div>
+          </div>`;
+      } else if (currentTab === 'chapters') {
+        const chapters = n.chapters || [];
+        tc.innerHTML = `
+          <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+            <button class="btn btn-primary btn-sm" onclick="openChap()">+ New chapter</button>
+          </div>
+          ${chapters.length === 0 ? '<div class="card empty-state">📖<br/>No chapters yet.</div>' : chapters.map((c, i) => `
+            <div class="card chapter-card" onclick="writeChapter('${c.id}')">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                <div>
+                  <div style="font-family:var(--font-display); font-size:1.15rem;">Chapter ${i+1}: ${escapeHtml(c.title || '(untitled)')}</div>
+                  <div class="text-muted" style="font-size:0.82rem; margin-top:2px;">${countWords(c.body).toLocaleString()} words</div>
+                </div>
+                <span style="color:var(--rose);">${ICONS.chevronR}</span>
+              </div>
+            </div>
+          `).join('')}`;
+      } else if (currentTab === 'inspiration') {
+        const insp = n.inspiration || [];
+        tc.innerHTML = `
+          <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+            <button class="btn btn-primary btn-sm" onclick="openIn()">+ Add inspiration</button>
+          </div>
+          ${insp.length === 0 ? '<div class="card empty-state">🌸<br/>Pin images and quotes that fuel this story.</div>' : `<div class="inspiration-grid">${insp.map(it => `
+            <div class="insp-card">
+              <button class="insp-rm" onclick="event.stopPropagation(); removeIn('${it.id}')">×</button>
+              ${it.type === 'image' && it.value ? `<img alt="" data-img-src="${escapeHtml(it.value)}">` : `<div class="quote">"${escapeHtml(it.value || '')}"</div>`}
+              ${it.note ? `<div class="note">${escapeHtml(it.note)}</div>` : ''}
+            </div>
+          `).join('')}</div>`}`;
+        resolveAllImages();
+      }
+    }
+    function switchTab(t) { currentTab = t; renderDetail(); }
+
+    /* ============== NOVEL CRUD ============== */
+    function openNovelEditor(id) {
+      const n = id ? novel(id) : null;
+      document.getElementById('n-modal-title').textContent = n ? '✏️ Edit novel' : '✍️ New novel';
+      document.getElementById('n-id').value = n ? n.id : '';
+      document.getElementById('f-title').value = n ? (n.title || '') : '';
+      document.getElementById('f-premise').value = n ? (n.premise || '') : '';
+      document.getElementById('f-synopsis').value = n ? (n.synopsis || '') : '';
+      document.getElementById('n-del').classList.toggle('hidden', !n);
+      document.getElementById('n-modal').classList.add('open');
+      setTimeout(() => document.getElementById('f-title').focus(), 60);
+    }
+    function closeNovel() { document.getElementById('n-modal').classList.remove('open'); }
+    function saveNovel() {
+      const id = document.getElementById('n-id').value;
+      const data = {
+        title: document.getElementById('f-title').value.trim(),
+        premise: document.getElementById('f-premise').value.trim(),
+        synopsis: document.getElementById('f-synopsis').value
+      };
+      if (!data.title) return toast('Give it a title 🌱');
+      if (id) { BLOOM.updateInCollection(NS, id, data); toast('Saved 🌿', 'success'); }
+      else {
+        const n = BLOOM.addToCollection(NS, { ...data, chapters: [], characters: [], inspiration: [], plot: '', world: '' });
+        toast('Novel started 🌸', 'success');
+        closeNovel();
+        return goDetail(n.id);
+      }
+      closeNovel();
+      if (currentId) renderDetail(); else renderList();
+    }
+    function delNovel() {
+      const id = document.getElementById('n-id').value;
+      if (id && confirm('Delete this novel and ALL its chapters, characters, inspiration?')) {
+        const n = novel(id);
+        // Clean up inspiration images
+        if (n) (n.inspiration || []).forEach(i => maybeDeleteLocalImage(i.value));
+        BLOOM.deleteFromCollection(NS, id);
+        closeNovel();
+        toast('Removed 🌿');
+        goList();
+      }
+    }
+
+    /* ============== CHARACTERS ============== */
+    function openChar(id) {
+      const n = novel(currentId);
+      const c = id ? (n.characters || []).find(x => x.id === id) : null;
+      document.getElementById('ch-title').textContent = c ? '✏️ Edit character' : '👤 New character';
+      document.getElementById('ch-id').value = c ? c.id : '';
+      document.getElementById('cf-name').value = c ? (c.name || '') : '';
+      document.getElementById('cf-role').value = c ? (c.role || '') : '';
+      document.getElementById('cf-traits').value = c ? (c.traits || '') : '';
+      document.getElementById('cf-back').value = c ? (c.back || '') : '';
+      document.getElementById('ch-del').classList.toggle('hidden', !c);
+      document.getElementById('ch-modal').classList.add('open');
+      setTimeout(() => document.getElementById('cf-name').focus(), 60);
+    }
+    function closeChar() { document.getElementById('ch-modal').classList.remove('open'); }
+    function saveChar() {
+      const id = document.getElementById('ch-id').value;
+      const data = {
+        name: document.getElementById('cf-name').value.trim(),
+        role: document.getElementById('cf-role').value.trim(),
+        traits: document.getElementById('cf-traits').value.trim(),
+        back: document.getElementById('cf-back').value
+      };
+      if (!data.name) return toast('Give them a name 🌱');
+      const n = novel(currentId);
+      const chars = n.characters ? n.characters.slice() : [];
+      if (id) {
+        const i = chars.findIndex(x => x.id === id);
+        if (i >= 0) chars[i] = { ...chars[i], ...data };
+      } else {
+        chars.push({ id: BLOOM.uid(), ...data });
+      }
+      BLOOM.updateInCollection(NS, currentId, { characters: chars });
+      closeChar();
+      renderDetail();
+    }
+    function delChar() {
+      const id = document.getElementById('ch-id').value;
+      if (!id || !confirm('Delete this character?')) return;
+      const n = novel(currentId);
+      const chars = (n.characters || []).filter(c => c.id !== id);
+      BLOOM.updateInCollection(NS, currentId, { characters: chars });
+      closeChar();
+      renderDetail();
+    }
+
+    /* ============== PLOT & WORLD ============== */
+    function savePlot() { BLOOM.updateInCollection(NS, currentId, { plot: document.getElementById('plot-area').value }); toast('Saved 🌿', 'success'); }
+    function saveWorld() { BLOOM.updateInCollection(NS, currentId, { world: document.getElementById('world-area').value }); toast('Saved 🌿', 'success'); }
+
+    /* ============== CHAPTERS ============== */
+    function openChap(id) {
+      const n = novel(currentId);
+      const c = id ? (n.chapters || []).find(x => x.id === id) : null;
+      document.getElementById('cp-title').textContent = c ? '✏️ Rename chapter' : '📖 New chapter';
+      document.getElementById('cp-id').value = c ? c.id : '';
+      document.getElementById('cpf-title').value = c ? (c.title || '') : '';
+      document.getElementById('cp-modal').classList.add('open');
+      setTimeout(() => document.getElementById('cpf-title').focus(), 60);
+    }
+    function closeChap() { document.getElementById('cp-modal').classList.remove('open'); }
+    function saveChap() {
+      const id = document.getElementById('cp-id').value;
+      const title = document.getElementById('cpf-title').value.trim();
+      if (!title) return toast('Give it a title 🌱');
+      const n = novel(currentId);
+      const chapters = n.chapters ? n.chapters.slice() : [];
+      if (id) {
+        const i = chapters.findIndex(x => x.id === id);
+        if (i >= 0) chapters[i] = { ...chapters[i], title };
+      } else {
+        chapters.push({ id: BLOOM.uid(), title, body: '' });
+      }
+      BLOOM.updateInCollection(NS, currentId, { chapters });
+      closeChap();
+      renderDetail();
+    }
+
+    /* ============== WRITE VIEW ============== */
+    function writeChapter(id) {
+      currentChapterId = id;
+      const n = novel(currentId);
+      const c = (n.chapters || []).find(x => x.id === id);
+      if (!c) return;
+      document.getElementById('list-view').style.display = 'none';
+      document.getElementById('detail-view').style.display = 'none';
+      document.getElementById('write-view').style.display = 'block';
+      document.querySelector('#write-view .back-btn').innerHTML = ICONS.chevronL + '<span>Back to novel</span>';
+      document.getElementById('w-title').textContent = c.title;
+      document.getElementById('w-novel').textContent = n.title;
+      document.getElementById('chapter-body').value = c.body || '';
+      updateWriteWC();
+    }
+    function backToNovel() {
+      currentChapterId = null;
+      document.getElementById('write-view').style.display = 'none';
+      document.getElementById('detail-view').style.display = 'block';
+      renderDetail();
+    }
+    function updateWriteWC() {
+      const body = document.getElementById('chapter-body').value;
+      document.getElementById('w-wc').textContent = `${countWords(body).toLocaleString()} words`;
+    }
+    function saveChapterBody() {
+      if (!currentChapterId) return;
+      const n = novel(currentId);
+      const body = document.getElementById('chapter-body').value;
+      const chapters = (n.chapters || []).map(c => c.id === currentChapterId ? { ...c, body } : c);
+      BLOOM.updateInCollection(NS, currentId, { chapters });
+      updateWriteWC();
+    }
+    document.getElementById('chapter-body').addEventListener('input', () => {
+      updateWriteWC();
+      clearTimeout(writeTimer);
+      writeTimer = setTimeout(saveChapterBody, 800);
+    });
+    function renameChapter() { openChap(currentChapterId); }
+    function deleteChapter() {
+      if (!confirm('Delete this chapter and all its writing?')) return;
+      const n = novel(currentId);
+      const chapters = (n.chapters || []).filter(c => c.id !== currentChapterId);
+      BLOOM.updateInCollection(NS, currentId, { chapters });
+      toast('Chapter removed 🌿');
+      backToNovel();
+    }
+
+    /* ============== INSPIRATION ============== */
+    async function openIn() {
+      document.getElementById('if-type').value = 'image';
+      document.getElementById('if-quote').value = '';
+      document.getElementById('if-note').value = '';
+      onInTypeChange();
+      await ImagePicker.init('img-pic', '');
+      document.getElementById('in-modal').classList.add('open');
+    }
+    function onInTypeChange() {
+      const v = document.getElementById('if-type').value;
+      document.getElementById('in-img-field').style.display = v === 'image' ? 'flex' : 'none';
+      document.getElementById('in-quote-field').style.display = v === 'quote' ? 'flex' : 'none';
+    }
+    function closeIn() { document.getElementById('in-modal').classList.remove('open'); }
+    function saveIn() {
+      const type = document.getElementById('if-type').value;
+      const value = type === 'image' ? ImagePicker.get('img-pic') : document.getElementById('if-quote').value.trim();
+      const note = document.getElementById('if-note').value.trim();
+      if (!value) return toast(type === 'image' ? 'Pick an image 🌱' : 'Write the quote 🌱');
+      const n = novel(currentId);
+      const insp = n.inspiration ? n.inspiration.slice() : [];
+      insp.push({ id: BLOOM.uid(), type, value, note });
+      BLOOM.updateInCollection(NS, currentId, { inspiration: insp });
+      closeIn();
+      renderDetail();
+    }
+    async function removeIn(id) {
+      if (!confirm('Remove this?')) return;
+      const n = novel(currentId);
+      const target = (n.inspiration || []).find(x => x.id === id);
+      if (target && target.type === 'image') await maybeDeleteLocalImage(target.value);
+      const insp = (n.inspiration || []).filter(x => x.id !== id);
+      BLOOM.updateInCollection(NS, currentId, { inspiration: insp });
+      renderDetail();
+    }
+
+    ['n-modal','ch-modal','cp-modal','in-modal'].forEach(mid => {
+      document.getElementById(mid).addEventListener('click', (e) => { if (e.target.id === mid) document.getElementById(mid).classList.remove('open'); });
+    });
+
+    window.refreshPage = () => currentChapterId ? null : (currentId ? renderDetail() : renderList());
+    renderShell('novel');
+    renderList();
+  </script>
+</body>
+</html>

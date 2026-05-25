@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Finance</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>💰 Finance</h1>
+          <div class="subtitle">A gentle ledger for income and outflow.</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary" onclick="openEditor('income')">+ Income</button>
+          <button class="btn btn-primary" onclick="openEditor('expense')">+ Expense</button>
+        </div>
+      </div>
+
+      <div class="calendar-toolbar">
+        <button class="icon-btn" onclick="changeMonth(-1)"></button>
+        <h2 class="month-name" id="month-name">Month</h2>
+        <button class="icon-btn" onclick="changeMonth(1)"></button>
+        <button class="btn btn-secondary btn-sm" onclick="goNow()">This month</button>
+      </div>
+
+      <div class="grid grid-3" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <span class="stat-label">Income</span>
+          <span class="stat-value" id="stat-in" style="color:#4A7E50;">—</span>
+          <span class="stat-hint" id="stat-in-hint">This month</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Expense</span>
+          <span class="stat-value" id="stat-out" style="color:var(--rose);">—</span>
+          <span class="stat-hint" id="stat-out-hint">This month</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Balance</span>
+          <span class="stat-value" id="stat-bal">—</span>
+          <span class="stat-hint" id="stat-bal-hint">Net for the month</span>
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="margin-bottom:24px;">
+        <div class="card">
+          <div class="card-title">🍰 Where it went (this month)</div>
+          <div id="cat-pie" style="display:flex; gap:24px; align-items:center; flex-wrap:wrap;"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">📈 Last 6 months</div>
+          <div id="six-bars"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📜 Transactions (this month)</div>
+          <div style="display:flex; gap:8px;">
+            <select id="f-type" class="select" onchange="render()" style="min-width:120px;">
+              <option value="">All</option>
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+            </select>
+            <select id="f-cat" class="select" onchange="render()" style="min-width:140px;">
+              <option value="">All categories</option>
+            </select>
+          </div>
+        </div>
+        <div id="txn-list"></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="t-modal">
+    <div class="modal" style="max-width:480px;">
+      <h2 id="t-title">💰 New transaction</h2>
+      <input type="hidden" id="t-id">
+      <input type="hidden" id="t-type">
+      <div class="row">
+        <div class="field"><label>Amount</label><input id="f-amount" class="input" type="number" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="field">
+          <label>Currency</label>
+          <select id="f-cur" class="select"></select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Date</label><input id="f-date" class="input" type="date"></div>
+        <div class="field">
+          <label>Category</label>
+          <input id="f-cat-edit" class="input" placeholder="Food, Transport, Salary...">
+        </div>
+      </div>
+      <div class="field"><label>Note (optional)</label><textarea id="f-note" class="textarea" style="min-height:60px;"></textarea></div>
+      <div class="modal-actions">
+        <button class="btn btn-danger btn-sm hidden" id="t-del" onclick="del()">Delete</button>
+        <button class="btn btn-ghost" onclick="close_()">Cancel</button>
+        <button class="btn btn-primary" onclick="save()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS = 'tx';
+    const CURRENCY_SYMBOLS = { THB:'฿', USD:'$', EUR:'€', JPY:'¥', GBP:'£' };
+    function curSym(c){ return CURRENCY_SYMBOLS[c] || c || ''; }
+    const PALETTE = ['#F8C8DC','#FFD8B1','#D8BFD8','#C8E6C9','#FFCCBC','#B5EAD7','#C7CEEA','#FFDAC1','#E2C2FF','#FFE5A8','#F4A6B8'];
+
+    let view = new Date();
+
+    function pad(n){return n<10?'0'+n:''+n;}
+    function monthKey(d){ return d.getFullYear() + '-' + pad(d.getMonth()+1); }
+
+    function setNavBtns() {
+      document.querySelectorAll('.calendar-toolbar .icon-btn').forEach((b,i) => {
+        b.innerHTML = i === 0 ? ICONS.chevronL : ICONS.chevronR;
+      });
+    }
+    function changeMonth(d){ view.setMonth(view.getMonth()+d); render(); }
+    function goNow(){ view = new Date(); render(); }
+
+    function buildCurrencySelect() {
+      const sel = document.getElementById('f-cur');
+      const def = BLOOM.getSettings().currency || 'THB';
+      sel.innerHTML = ['THB','USD','EUR','JPY','GBP'].map(c => `<option value="${c}" ${c===def?'selected':''}>${c} ${curSym(c)}</option>`).join('');
+    }
+
+    function fmtMoney(amount, currency) { return `${curSym(currency)}${(amount||0).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:2})}`; }
+
+    function render() {
+      document.getElementById('month-name').textContent = view.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+      const mk = monthKey(view);
+      const all = BLOOM.getCollection(NS);
+      const monthTx = all.filter(t => (t.date || '').slice(0,7) === mk);
+
+      // Calculate totals (group by currency)
+      const inByCur = {}, outByCur = {};
+      monthTx.forEach(t => {
+        const c = t.currency || BLOOM.getSettings().currency || 'THB';
+        if (t.type === 'income') inByCur[c] = (inByCur[c]||0) + (t.amount||0);
+        else outByCur[c] = (outByCur[c]||0) + (t.amount||0);
+      });
+      const fmtTotalByCur = obj => Object.entries(obj).map(([c,v]) => fmtMoney(v, c)).join(' · ') || '—';
+      document.getElementById('stat-in').textContent = fmtTotalByCur(inByCur);
+      document.getElementById('stat-out').textContent = fmtTotalByCur(outByCur);
+      const balByCur = {};
+      Object.keys({...inByCur, ...outByCur}).forEach(c => { balByCur[c] = (inByCur[c]||0) - (outByCur[c]||0); });
+      document.getElementById('stat-bal').textContent = Object.keys(balByCur).length === 0 ? '—' : Object.entries(balByCur).map(([c,v]) => fmtMoney(v,c)).join(' · ');
+      document.getElementById('stat-bal').style.color = Object.values(balByCur).some(v => v < 0) ? 'var(--rose)' : (Object.values(balByCur).some(v => v > 0) ? '#4A7E50' : 'var(--ink)');
+
+      // Category list for filter
+      const cats = [...new Set(monthTx.map(t => t.category).filter(Boolean))].sort();
+      const fCat = document.getElementById('f-cat');
+      const curCat = fCat.value;
+      fCat.innerHTML = '<option value="">All categories</option>' + cats.map(c => `<option value="${escapeHtml(c)}" ${c===curCat?'selected':''}>${escapeHtml(c)}</option>`).join('');
+
+      // Expense pie by category (main currency)
+      const mainCur = Object.keys(outByCur)[0] || (BLOOM.getSettings().currency || 'THB');
+      const expenseTx = monthTx.filter(t => t.type === 'expense' && (t.currency || mainCur) === mainCur);
+      const byCat = {};
+      expenseTx.forEach(t => { const k = t.category || 'Uncategorized'; byCat[k] = (byCat[k]||0) + (t.amount||0); });
+      const pieEntries = Object.entries(byCat).sort((a,b) => b[1]-a[1]);
+      const pieTotal = pieEntries.reduce((s,[,v]) => s+v, 0);
+      const pieBox = document.getElementById('cat-pie');
+      if (pieTotal === 0) {
+        pieBox.innerHTML = '<div class="empty-state">No expenses yet this month 🌿</div>';
+      } else {
+        // Build SVG donut
+        const r = 80, c = 2*Math.PI*r;
+        let off = 0;
+        const segs = pieEntries.map(([cat,v], i) => {
+          const pct = v / pieTotal;
+          const dash = pct * c;
+          const seg = `<circle cx="100" cy="100" r="${r}" fill="none" stroke="${PALETTE[i % PALETTE.length]}" stroke-width="28" stroke-dasharray="${dash} ${c-dash}" stroke-dashoffset="${-off}"/>`;
+          off += dash;
+          return seg;
+        }).join('');
+        pieBox.innerHTML = `
+          <div class="donut-chart">
+            <svg viewBox="0 0 200 200" width="180" height="180">
+              <circle cx="100" cy="100" r="${r}" fill="none" stroke="var(--lavender-soft)" stroke-width="28"/>
+              ${segs}
+            </svg>
+            <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:var(--font-display);">
+              <div style="font-size:1.4rem;">${fmtMoney(pieTotal, mainCur)}</div>
+              <div class="text-muted" style="font-size:0.8rem;">spent</div>
+            </div>
+          </div>
+          <div class="donut-legend" style="flex:1; min-width:160px;">
+            ${pieEntries.map(([cat,v], i) => `<div class="item">
+              <div class="sw" style="background:${PALETTE[i % PALETTE.length]};"></div>
+              <span class="lbl">${escapeHtml(cat)}</span>
+              <span class="val">${Math.round(v/pieTotal*100)}%</span>
+            </div>`).join('')}
+          </div>`;
+      }
+
+      // Six-month bar chart (main currency)
+      const sixBox = document.getElementById('six-bars');
+      const months = [];
+      for (let i=5;i>=0;i--) {
+        const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+        const k = monthKey(d);
+        let in_ = 0, out_ = 0;
+        all.forEach(t => {
+          if ((t.date||'').slice(0,7) === k && (t.currency || mainCur) === mainCur) {
+            if (t.type === 'income') in_ += t.amount||0; else out_ += t.amount||0;
+          }
+        });
+        months.push({ k, label: d.toLocaleDateString('en-US',{month:'short'}), in_, out_ });
+      }
+      const maxVal = Math.max(1, ...months.map(m => Math.max(m.in_, m.out_)));
+      if (months.every(m => m.in_ === 0 && m.out_ === 0)) {
+        sixBox.innerHTML = '<div class="empty-state">No data yet 🌿</div>';
+      } else {
+        sixBox.innerHTML = `<div class="bar-chart">${months.map(m => `
+          <div class="bar-group">
+            <div class="bar-bars">
+              <div class="bar in" style="height:${(m.in_/maxVal)*100}%;" title="${fmtMoney(m.in_, mainCur)} in"></div>
+              <div class="bar out" style="height:${(m.out_/maxVal)*100}%;" title="${fmtMoney(m.out_, mainCur)} out"></div>
+            </div>
+            <div class="bar-label">${m.label}</div>
+          </div>
+        `).join('')}</div>
+        <div style="display:flex; gap:14px; justify-content:center; margin-top:6px; font-size:0.78rem;">
+          <span><span class="sw" style="display:inline-block; width:10px; height:10px; background:#95C49A; border-radius:3px; vertical-align:middle;"></span> Income</span>
+          <span><span class="sw" style="display:inline-block; width:10px; height:10px; background:var(--rose); border-radius:3px; vertical-align:middle;"></span> Expense</span>
+        </div>`;
+      }
+
+      // Transaction list
+      const tType = document.getElementById('f-type').value;
+      const tCat = document.getElementById('f-cat').value;
+      let tx = monthTx.slice();
+      if (tType) tx = tx.filter(t => t.type === tType);
+      if (tCat) tx = tx.filter(t => t.category === tCat);
+      tx.sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.createdAt||0)-(a.createdAt||0));
+      const list = document.getElementById('txn-list');
+      if (tx.length === 0) {
+        list.innerHTML = '<div class="empty-state">No transactions this month yet 🌿</div>';
+      } else {
+        list.innerHTML = tx.map(t => `<div class="fin-row" onclick="openEditor('${t.type}', '${t.id}')">
+          <div class="fin-icon ${t.type}">${t.type === 'income' ? '🌱' : '🌸'}</div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700;">${escapeHtml(t.category || 'Uncategorized')}</div>
+            <div class="text-muted" style="font-size:0.82rem;">${fmtDateShort(t.date)}${t.note ? ' · ' + escapeHtml(t.note) : ''}</div>
+          </div>
+          <div class="fin-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${fmtMoney(t.amount, t.currency || mainCur)}</div>
+        </div>`).join('');
+      }
+    }
+
+    function openEditor(type, id) {
+      buildCurrencySelect();
+      const x = id ? BLOOM.getCollection(NS).find(t=>t.id===id) : null;
+      const t = x ? x.type : type;
+      document.getElementById('t-title').textContent = (x ? '✏️ Edit ' : '+ ') + (t === 'income' ? 'income' : 'expense');
+      document.getElementById('t-id').value = x ? x.id : '';
+      document.getElementById('t-type').value = t;
+      document.getElementById('f-amount').value = x ? (x.amount || '') : '';
+      document.getElementById('f-cur').value = x ? (x.currency || BLOOM.getSettings().currency || 'THB') : (BLOOM.getSettings().currency || 'THB');
+      document.getElementById('f-date').value = x ? (x.date || BLOOM.today()) : BLOOM.today();
+      document.getElementById('f-cat-edit').value = x ? (x.category || '') : '';
+      document.getElementById('f-note').value = x ? (x.note || '') : '';
+      document.getElementById('t-del').classList.toggle('hidden', !x);
+      document.getElementById('t-modal').classList.add('open');
+      setTimeout(() => document.getElementById('f-amount').focus(), 60);
+    }
+    function close_() { document.getElementById('t-modal').classList.remove('open'); }
+    function save() {
+      const id = document.getElementById('t-id').value;
+      const data = {
+        type: document.getElementById('t-type').value,
+        amount: parseFloat(document.getElementById('f-amount').value) || 0,
+        currency: document.getElementById('f-cur').value,
+        date: document.getElementById('f-date').value || BLOOM.today(),
+        category: document.getElementById('f-cat-edit').value.trim(),
+        note: document.getElementById('f-note').value
+      };
+      if (!data.amount) return toast('Enter an amount 🌱');
+      if (id) { BLOOM.updateInCollection(NS, id, data); toast('Updated 🌿', 'success'); }
+      else { BLOOM.addToCollection(NS, data); toast('Logged 🌸', 'success'); }
+      close_();
+      render();
+    }
+    function del() {
+      const id = document.getElementById('t-id').value;
+      if (id && confirm('Delete this transaction?')) { BLOOM.deleteFromCollection(NS, id); close_(); toast('Removed 🌿'); render(); }
+    }
+    document.getElementById('t-modal').addEventListener('click', (e) => { if (e.target.id === 't-modal') close_(); });
+
+    window.refreshPage = render;
+    renderShell('finance');
+    setNavBtns();
+    render();
+  </script>
+</body>
+</html>
