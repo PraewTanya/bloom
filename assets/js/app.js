@@ -7,6 +7,7 @@ const ICONS = {
   dashboard: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
   calendar: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
   todo: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 4 4 12-12"/><path d="M4 20h16"/></svg>',
+  timetable: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 4v17M13 4v17M18 4v17M3 14h18"/></svg>',
   habits: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V8"/><path d="M5 12c2 0 5 1 7 4"/><path d="M19 9c-2 0-5 1-7 4"/><path d="M12 8a4 4 0 0 0-4-4 4 4 0 0 0 4 4Z"/></svg>',
   mood: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>',
   diary: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
@@ -37,7 +38,8 @@ const NAV_ITEMS = [
   { group: 'Today', items: [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: 'index.html' },
     { id: 'calendar', label: 'Calendar', icon: 'calendar', href: 'calendar.html' },
-    { id: 'todo', label: 'To-Do', icon: 'todo', href: 'todo.html' }
+    { id: 'todo', label: 'To-Do', icon: 'todo', href: 'todo.html' },
+    { id: 'timetable', label: 'Timetable', icon: 'timetable', href: 'timetable.html' }
   ]},
   { group: 'Reflect', items: [
     { id: 'habits', label: 'Habits', icon: 'habits', href: 'habits.html' },

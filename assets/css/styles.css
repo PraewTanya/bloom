@@ -956,6 +956,147 @@ a:hover { opacity: 0.75; }
 .vb-handle { position: absolute; bottom: 2px; right: 2px; width: 14px; height: 14px; cursor: nwse-resize; background: rgba(0,0,0,0.15); border-radius: 4px 0 0 0; opacity: 0; transition: opacity 0.15s; }
 .vb-item:hover .vb-handle { opacity: 1; }
 
+/* =========================================================
+   Timetable (weekly time-box schedule)
+   ========================================================= */
+.tt-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.tt-toolbar .week-label { font-family: var(--font-display); font-size: 1.3rem; min-width: 200px; }
+
+.tt {
+  display: grid;
+  grid-template-columns: 64px repeat(7, 1fr);
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+.tt-corner { background: var(--card-bg); border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+.tt-day-head {
+  text-align: center;
+  padding: 10px 4px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 0.85rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.tt-day-head:last-child { border-right: none; }
+.tt-day-head .dow { font-size: 0.72rem; color: var(--ink-faint); letter-spacing: 0.08em; text-transform: uppercase; }
+.tt-day-head .dnum { font-family: var(--font-display); font-size: 1.4rem; line-height: 1.1; }
+.tt-day-head.today { background: linear-gradient(135deg, var(--peach-soft), var(--blush-soft)); }
+.tt-day-head.today .dnum { color: var(--rose); }
+
+.tt-time {
+  background: var(--card-bg);
+  border-right: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  text-align: right;
+  height: 44px; /* two 30-min slots = 44px */
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  font-weight: 700;
+}
+
+.tt-day {
+  position: relative;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 21px,
+    rgba(61, 61, 92, 0.04) 21px,
+    rgba(61, 61, 92, 0.04) 22px,
+    transparent 22px,
+    transparent 43px,
+    rgba(61, 61, 92, 0.08) 43px,
+    rgba(61, 61, 92, 0.08) 44px
+  );
+  cursor: copy;
+  min-height: 1056px; /* 48 slots × 22px */
+  height: 1056px;
+}
+.tt-day:last-child { border-right: none; }
+.tt-day.today { background-color: var(--peach-soft); background-blend-mode: multiply; }
+
+.tt-block {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  color: var(--ink);
+  overflow: hidden;
+  cursor: pointer;
+  border: 1.5px solid rgba(61, 61, 92, 0.15);
+  transition: transform 0.1s, box-shadow 0.1s;
+  z-index: 1;
+}
+.tt-block:hover { transform: scale(1.02); box-shadow: var(--shadow-md); z-index: 2; }
+.tt-block .b-title { font-weight: 700; line-height: 1.2; }
+.tt-block .b-time { font-size: 0.7rem; color: var(--ink-soft); }
+.tt-block.override { border-style: dashed; border-color: var(--rose); }
+.tt-block.override::after {
+  content: '★';
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.7rem;
+  color: var(--rose);
+}
+.tt-block.skipped {
+  opacity: 0.35;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--lavender-soft),
+    var(--lavender-soft) 6px,
+    transparent 6px,
+    transparent 12px
+  ) !important;
+  border-style: dashed;
+  border-color: var(--ink-faint);
+}
+.tt-block.skipped .b-title { text-decoration: line-through; }
+.tt-block.skipped:hover { opacity: 0.6; }
+.tt-block.skipped::after {
+  content: '🚫 skipped';
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.65rem;
+  color: var(--ink-faint);
+  font-style: italic;
+}
+.tt-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--rose);
+  z-index: 3;
+  pointer-events: none;
+}
+.tt-now-line::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--rose);
+}
+
 /* Image picker (URL or upload) */
 .img-picker { display: flex; gap: 12px; align-items: flex-start; }
 .img-preview-box {

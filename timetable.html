@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom — Timetable</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <div id="topbar-slot"></div>
+
+      <div class="page-header">
+        <div>
+          <h1>📋 Timetable</h1>
+          <div class="subtitle">A time-box for your week — what to do, and when.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEditor()">+ New block</button>
+      </div>
+
+      <div class="tt-toolbar">
+        <button class="icon-btn" onclick="changeWeek(-1)" title="Previous week"></button>
+        <h2 class="week-label" id="week-label">Week</h2>
+        <button class="icon-btn" onclick="changeWeek(1)" title="Next week"></button>
+        <button class="btn btn-secondary btn-sm" onclick="goThisWeek()">This week</button>
+      </div>
+
+      <div class="tt" id="tt"></div>
+
+      <div class="card mt-2">
+        <div class="card-title">💡 Tips</div>
+        <ul style="line-height:1.8; color:var(--ink-soft); margin: 0;">
+          <li>Click any empty time slot to add a block — it'll prefill that day and time</li>
+          <li>Click a block to edit or delete it</li>
+          <li>Recurring blocks repeat every week. Override (★) blocks happen only on that specific date</li>
+          <li>The pink line shows the current time today</li>
+        </ul>
+      </div>
+    </main>
+  </div>
+
+  <!-- Block editor modal -->
+  <div class="modal-backdrop" id="b-modal">
+    <div class="modal" style="max-width:520px;">
+      <h2 id="b-title">📋 New block</h2>
+      <input type="hidden" id="b-id">
+      <input type="hidden" id="b-kind"> <!-- 'recurring' or 'override' -->
+
+      <div class="field">
+        <label>Title</label>
+        <input id="bf-title" class="input" placeholder="Yoga, deep work, lunch...">
+      </div>
+
+      <div class="field">
+        <label>How often?</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-secondary btn-sm" id="kind-recurring" onclick="setKind('recurring')">↻ Repeat every week</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="kind-override" onclick="setKind('override')">★ Just this date</button>
+        </div>
+      </div>
+
+      <div class="field" id="recurring-day-field">
+        <label>Day of week</label>
+        <select id="bf-day" class="select">
+          <option value="0">Sunday</option>
+          <option value="1">Monday</option>
+          <option value="2">Tuesday</option>
+          <option value="3">Wednesday</option>
+          <option value="4">Thursday</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+        </select>
+      </div>
+
+      <div class="field" id="override-date-field" style="display:none;">
+        <label>Specific date</label>
+        <input id="bf-date" class="input" type="date">
+      </div>
+
+      <div class="row">
+        <div class="field"><label>Start</label><input id="bf-start" class="input" type="time" step="1800"></div>
+        <div class="field"><label>End</label><input id="bf-end" class="input" type="time" step="1800"></div>
+      </div>
+
+      <div class="field">
+        <label>Color</label>
+        <div class="color-picker" id="bf-color"></div>
+      </div>
+
+      <div class="field">
+        <label>Notes (optional)</label>
+        <textarea id="bf-notes" class="textarea" style="min-height:60px;"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary btn-sm hidden" id="b-skip" onclick="skipForDate()" title="Cancel this block only for one date">🚫 Skip this date</button>
+        <button class="btn btn-danger btn-sm hidden" id="b-del" onclick="del()">Delete</button>
+        <button class="btn btn-ghost" onclick="close_()">Cancel</button>
+        <button class="btn btn-primary" onclick="save()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    const NS_R = 'timetable';            // recurring (weekly)
+    const NS_O = 'timetable_overrides';  // date-specific
+    const NS_S = 'timetable_skips';      // skipped recurring blocks: { blockId, date }
+
+    const COLORS = ['#F8C8DC','#FFD8B1','#D8BFD8','#C8E6C9','#FFCCBC','#B5EAD7','#C7CEEA','#FFDAC1','#FFE5A8'];
+    const SLOT_PX = 22;     // px per 30-min slot
+    const SLOTS_PER_DAY = 48;
+    const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    let viewDate = new Date();   // any date in the displayed week
+    let pickedColor = COLORS[0];
+    let editKind = 'recurring';  // 'recurring' | 'override'
+    let editClickedDate = null;  // when editing a recurring block, the specific date clicked (for Skip)
+
+    function pad(n){return n<10?'0'+n:''+n;}
+    function ymd(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+    function startOfWeek(d) {
+      const fdow = BLOOM.getSettings().firstDayOfWeek || 0;
+      const date = new Date(d);
+      const day = date.getDay();
+      const diff = (day - fdow + 7) % 7;
+      date.setDate(date.getDate() - diff);
+      date.setHours(0,0,0,0);
+      return date;
+    }
+    function timeToMin(t){ const [h,m] = (t||'00:00').split(':').map(Number); return h*60 + m; }
+    function minToTime(m){ return pad(Math.floor(m/60)%24) + ':' + pad(m%60); }
+
+    function setNavBtns() {
+      document.querySelectorAll('.tt-toolbar .icon-btn').forEach((b,i) => {
+        b.innerHTML = i === 0 ? ICONS.chevronL : ICONS.chevronR;
+      });
+    }
+    function changeWeek(d){ viewDate.setDate(viewDate.getDate() + d*7); render(); }
+    function goThisWeek(){ viewDate = new Date(); render(); }
+
+    function buildColorPicker() {
+      const c = document.getElementById('bf-color');
+      c.innerHTML = COLORS.map(col => `<button type="button" style="background:${col};" data-c="${col}" onclick="pickColor('${col}')" class="${col===pickedColor?'selected':''}"></button>`).join('');
+    }
+    function pickColor(c){
+      pickedColor = c;
+      document.querySelectorAll('#bf-color button').forEach(b => b.classList.toggle('selected', b.dataset.c === c));
+    }
+
+    function setKind(k) {
+      editKind = k;
+      document.getElementById('b-kind').value = k;
+      document.getElementById('kind-recurring').className = 'btn btn-sm ' + (k==='recurring' ? 'btn-primary' : 'btn-secondary');
+      document.getElementById('kind-override').className = 'btn btn-sm ' + (k==='override' ? 'btn-primary' : 'btn-secondary');
+      document.getElementById('recurring-day-field').style.display = k === 'recurring' ? '' : 'none';
+      document.getElementById('override-date-field').style.display = k === 'override' ? '' : 'none';
+    }
+
+    function render() {
+      const start = startOfWeek(viewDate);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      document.getElementById('week-label').textContent =
+        `${start.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${end.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+
+      const fdow = BLOOM.getSettings().firstDayOfWeek || 0;
+      const todayStr = BLOOM.today();
+      const recurring = BLOOM.getCollection(NS_R);
+      const overrides = BLOOM.getCollection(NS_O);
+
+      // Header row: corner + 7 day heads
+      let html = `<div class="tt-corner"></div>`;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start); d.setDate(d.getDate() + i);
+        const isToday = ymd(d) === todayStr;
+        html += `<div class="tt-day-head ${isToday?'today':''}">
+          <div class="dow">${DOW[d.getDay()]}</div>
+          <div class="dnum">${d.getDate()}</div>
+        </div>`;
+      }
+
+      // Body — column 1: time labels (every hour, span 2 slots), columns 2-8: day containers
+      // We render 24 time labels (hourly) + 7 day cols. We place them in the same grid.
+      // Time labels are 44px tall (2 slots).
+      let timeLabelsHtml = '';
+      for (let h = 0; h < 24; h++) {
+        timeLabelsHtml += `<div class="tt-time">${pad(h)}:00</div>`;
+      }
+
+      let dayColsHtml = '';
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start); d.setDate(d.getDate() + i);
+        const dayKey = ymd(d);
+        const dow = d.getDay();
+        const isToday = dayKey === todayStr;
+
+        // Recurring blocks for this day-of-week
+        const dayRec = recurring.filter(r => r.day === dow);
+        // Overrides for this specific date
+        const dayOv = overrides.filter(o => o.date === dayKey);
+
+        let blocks = '';
+        const skips = BLOOM.getCollection(NS_S);
+        dayRec.forEach(r => {
+          const startMin = timeToMin(r.start);
+          const endMin = Math.max(startMin + 30, timeToMin(r.end));
+          const top = (startMin / 30) * SLOT_PX;
+          const height = ((endMin - startMin) / 30) * SLOT_PX - 2;
+          const skip = skips.find(s => s.blockId === r.id && s.date === dayKey);
+          if (skip) {
+            blocks += `<div class="tt-block skipped" style="top:${top}px; height:${height}px; background:${r.color || COLORS[0]}55;" onclick="event.stopPropagation(); unskip('${skip.id}')" title="Click to un-skip">
+              <div class="b-title">${escapeHtml(r.title)}</div>
+              <div class="b-time">${r.start} – ${r.end}</div>
+            </div>`;
+          } else {
+            blocks += `<div class="tt-block" style="top:${top}px; height:${height}px; background:${r.color || COLORS[0]}99;" onclick="event.stopPropagation(); openEditor({kind:'recurring', id:'${r.id}', clickedDate:'${dayKey}'})" title="${escapeHtml(r.title)}">
+              <div class="b-title">${escapeHtml(r.title)}</div>
+              <div class="b-time">${r.start} – ${r.end}</div>
+            </div>`;
+          }
+        });
+        dayOv.forEach(o => {
+          const startMin = timeToMin(o.start);
+          const endMin = Math.max(startMin + 30, timeToMin(o.end));
+          const top = (startMin / 30) * SLOT_PX;
+          const height = ((endMin - startMin) / 30) * SLOT_PX - 2;
+          blocks += `<div class="tt-block override" style="top:${top}px; height:${height}px; background:${o.color || COLORS[0]}99;" onclick="event.stopPropagation(); openEditor({kind:'override', id:'${o.id}'})" title="${escapeHtml(o.title)}">
+            <div class="b-title">${escapeHtml(o.title)}</div>
+            <div class="b-time">${o.start} – ${o.end}</div>
+          </div>`;
+        });
+
+        // Now line on today
+        let nowLine = '';
+        if (isToday) {
+          const now = new Date();
+          const nowMin = now.getHours()*60 + now.getMinutes();
+          const top = (nowMin / 30) * SLOT_PX;
+          nowLine = `<div class="tt-now-line" style="top:${top}px;"></div>`;
+        }
+
+        dayColsHtml += `<div class="tt-day ${isToday?'today':''}" data-day="${dow}" data-date="${dayKey}" onclick="onDayClick(event, this)">${blocks}${nowLine}</div>`;
+      }
+
+      // Assemble: header row, then alternating time-label + 7 days per hour... but grid handles that
+      // Approach: place time labels in column 1 (24 rows), and 7 day columns each spanning all 48 rows
+      // Use grid-template-rows: repeat(24, 44px)
+      const tt = document.getElementById('tt');
+      tt.style.gridTemplateRows = `auto repeat(24, 44px)`;
+      tt.innerHTML = html + timeLabelsHtml + dayColsHtml;
+
+      // Make each day column span all 24 rows
+      const dayEls = tt.querySelectorAll('.tt-day');
+      dayEls.forEach(el => { el.style.gridRow = '2 / span 24'; });
+    }
+
+    function onDayClick(e, el) {
+      // Open editor prefilled with this day + clicked time
+      if (e.target.closest('.tt-block')) return;
+      const rect = el.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const slot = Math.max(0, Math.min(SLOTS_PER_DAY - 2, Math.floor(y / SLOT_PX)));
+      const startMin = slot * 30;
+      const endMin = startMin + 60; // default 1-hour block
+      const dow = parseInt(el.dataset.day, 10);
+      const dateStr = el.dataset.date;
+      openEditor({ kind: 'recurring', prefill: { day: dow, date: dateStr, start: minToTime(startMin), end: minToTime(endMin) } });
+    }
+
+    function openEditor(opts) {
+      opts = opts || {};
+      const isEdit = !!opts.id;
+      const kind = opts.kind || 'recurring';
+      const item = isEdit ? BLOOM.getCollection(kind === 'recurring' ? NS_R : NS_O).find(x => x.id === opts.id) : null;
+      editClickedDate = opts.clickedDate || null;
+
+      document.getElementById('b-title').textContent = isEdit ? '✏️ Edit block' : '📋 New block';
+      document.getElementById('b-id').value = isEdit ? opts.id : '';
+
+      // Show skip button only when editing a recurring block + we know the specific date
+      const skipBtn = document.getElementById('b-skip');
+      if (isEdit && kind === 'recurring' && editClickedDate) {
+        const d = new Date(editClickedDate + 'T00:00:00');
+        skipBtn.textContent = `🚫 Skip on ${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+        skipBtn.classList.remove('hidden');
+      } else {
+        skipBtn.classList.add('hidden');
+      }
+
+      buildColorPicker();
+      setKind(kind);
+
+      if (item) {
+        document.getElementById('bf-title').value = item.title || '';
+        document.getElementById('bf-start').value = item.start || '08:00';
+        document.getElementById('bf-end').value = item.end || '09:00';
+        document.getElementById('bf-notes').value = item.notes || '';
+        pickedColor = item.color || COLORS[0];
+        buildColorPicker();
+        if (kind === 'recurring') document.getElementById('bf-day').value = item.day;
+        else document.getElementById('bf-date').value = item.date;
+      } else {
+        const pre = opts.prefill || {};
+        document.getElementById('bf-title').value = '';
+        document.getElementById('bf-start').value = pre.start || '08:00';
+        document.getElementById('bf-end').value = pre.end || '09:00';
+        document.getElementById('bf-notes').value = '';
+        document.getElementById('bf-day').value = (pre.day !== undefined ? pre.day : new Date().getDay());
+        document.getElementById('bf-date').value = pre.date || BLOOM.today();
+        pickedColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+        buildColorPicker();
+      }
+
+      document.getElementById('b-del').classList.toggle('hidden', !isEdit);
+      document.getElementById('b-modal').classList.add('open');
+      setTimeout(() => document.getElementById('bf-title').focus(), 60);
+    }
+    function close_() { document.getElementById('b-modal').classList.remove('open'); }
+    function save() {
+      const id = document.getElementById('b-id').value;
+      const kind = document.getElementById('b-kind').value;
+      const title = document.getElementById('bf-title').value.trim();
+      const start = document.getElementById('bf-start').value;
+      const end = document.getElementById('bf-end').value;
+      const notes = document.getElementById('bf-notes').value;
+      const color = pickedColor;
+      if (!title) return toast('Add a title 🌱');
+      if (!start || !end) return toast('Set start & end times 🌿');
+      if (timeToMin(end) <= timeToMin(start)) return toast('End must be after start 🌸');
+
+      if (kind === 'recurring') {
+        const day = parseInt(document.getElementById('bf-day').value, 10);
+        const data = { day, start, end, title, color, notes };
+        if (id) {
+          // If we were editing an override but now switched to recurring, move it
+          const wasOverride = BLOOM.getCollection(NS_O).some(o => o.id === id);
+          if (wasOverride) { BLOOM.deleteFromCollection(NS_O, id); BLOOM.addToCollection(NS_R, data); }
+          else BLOOM.updateInCollection(NS_R, id, data);
+        } else BLOOM.addToCollection(NS_R, data);
+      } else {
+        const date = document.getElementById('bf-date').value || BLOOM.today();
+        const data = { date, start, end, title, color, notes };
+        if (id) {
+          const wasRecurring = BLOOM.getCollection(NS_R).some(r => r.id === id);
+          if (wasRecurring) { BLOOM.deleteFromCollection(NS_R, id); BLOOM.addToCollection(NS_O, data); }
+          else BLOOM.updateInCollection(NS_O, id, data);
+        } else BLOOM.addToCollection(NS_O, data);
+      }
+      toast('Saved 🌸', 'success');
+      close_();
+      render();
+    }
+    function del() {
+      const id = document.getElementById('b-id').value;
+      const kind = document.getElementById('b-kind').value;
+      if (!id) return;
+      if (!confirm('Delete this block?')) return;
+      BLOOM.deleteFromCollection(kind === 'recurring' ? NS_R : NS_O, id);
+      // Also clean up any skips that referenced this recurring block
+      if (kind === 'recurring') {
+        BLOOM.getCollection(NS_S).filter(s => s.blockId === id).forEach(s => BLOOM.deleteFromCollection(NS_S, s.id));
+      }
+      close_();
+      toast('Removed 🌿');
+      render();
+    }
+
+    function skipForDate() {
+      const id = document.getElementById('b-id').value;
+      if (!id || !editClickedDate) return;
+      // Avoid duplicates
+      const existing = BLOOM.getCollection(NS_S).find(s => s.blockId === id && s.date === editClickedDate);
+      if (existing) { close_(); render(); return; }
+      BLOOM.addToCollection(NS_S, { blockId: id, date: editClickedDate });
+      const d = new Date(editClickedDate + 'T00:00:00');
+      toast(`Skipped on ${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})} 🌿`, 'success');
+      close_();
+      render();
+    }
+
+    function unskip(skipId) {
+      if (!confirm('Bring this block back on this date?')) return;
+      BLOOM.deleteFromCollection(NS_S, skipId);
+      toast('Restored 🌸', 'success');
+      render();
+    }
+
+    document.getElementById('b-modal').addEventListener('click', (e) => { if (e.target.id === 'b-modal') close_(); });
+
+    // Auto-refresh the "now line" every minute
+    setInterval(() => {
+      const todayKey = BLOOM.today();
+      const todayEl = document.querySelector(`.tt-day[data-date="${todayKey}"]`);
+      if (!todayEl) return;
+      const existing = todayEl.querySelector('.tt-now-line');
+      const now = new Date();
+      const nowMin = now.getHours()*60 + now.getMinutes();
+      const top = (nowMin / 30) * SLOT_PX;
+      if (existing) existing.style.top = top + 'px';
+    }, 60000);
+
+    window.refreshPage = render;
+    renderShell('timetable');
+    setNavBtns();
+    render();
+  </script>
+</body>
+</html>

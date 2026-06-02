@@ -50,6 +50,14 @@
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header">
+          <div class="card-title">📋 Today's schedule</div>
+          <a href="timetable.html" class="btn btn-ghost btn-sm">View timetable</a>
+        </div>
+        <div id="today-schedule"></div>
+      </div>
+
       <div class="grid grid-2">
         <div class="card">
           <div class="card-header">
@@ -139,6 +147,30 @@
       else if (totalActivity > 0) { stage = '🌱'; hint = 'Sprouting nicely'; }
       document.getElementById('stat-garden').textContent = stage;
       document.getElementById('stat-garden-hint').textContent = hint;
+
+      // today schedule (timetable blocks)
+      const todayDow = new Date().getDay();
+      const skipsToday = BLOOM.getCollection('timetable_skips').filter(s => s.date === t).map(s => s.blockId);
+      const recurring = BLOOM.getCollection('timetable').filter(r => r.day === todayDow && !skipsToday.includes(r.id));
+      const overrides = BLOOM.getCollection('timetable_overrides').filter(o => o.date === t);
+      const allBlocks = [...recurring, ...overrides].sort((a,b) => (a.start||'').localeCompare(b.start||''));
+      const schedBox = document.getElementById('today-schedule');
+      if (allBlocks.length === 0) {
+        schedBox.innerHTML = '<div class="empty-state">No blocks scheduled today 🌿<br/><small>Visit Timetable to set up your weekly routine.</small></div>';
+      } else {
+        // Find current/next block
+        const nowMin = new Date().getHours()*60 + new Date().getMinutes();
+        const timeToMin = s => { const [h,m] = (s||'00:00').split(':').map(Number); return h*60 + m; };
+        schedBox.innerHTML = `<div style="display:flex; gap:8px; flex-wrap:wrap;">${allBlocks.map(b => {
+          const startMin = timeToMin(b.start), endMin = timeToMin(b.end);
+          const isNow = nowMin >= startMin && nowMin < endMin;
+          const isPast = nowMin >= endMin;
+          return `<div style="flex:1; min-width:180px; padding:10px 14px; background:${b.color || '#F8C8DC'}55; border-left:3px solid ${b.color || '#F8C8DC'}; border-radius:10px; ${isPast ? 'opacity:0.5;' : ''} ${isNow ? 'box-shadow:0 0 0 2px var(--rose);' : ''}">
+            <div style="font-size:0.78rem; color:var(--ink-soft); font-weight:700;">${b.start} – ${b.end}${isNow ? ' · now' : ''}</div>
+            <div style="font-weight:700; margin-top:2px;">${escapeHtml(b.title)}</div>
+          </div>`;
+        }).join('')}</div>`;
+      }
 
       // today events list
       const evBox = document.getElementById('today-events');
