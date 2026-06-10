@@ -79,7 +79,7 @@ const BRAND_SVG = `<svg class="brand-mark" viewBox="0 0 40 40" fill="none" xmlns
   <circle cx="20" cy="20" r="2.5" fill="#FFF6E5"/>
 </svg>`;
 
-const GARDEN_SVG = `<svg class="garden-svg" viewBox="0 0 600 140" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+const GARDEN_SVG = `<svg class="garden-svg" viewBox="0 0 600 140" width="100%" height="140" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
   <path d="M0 120 Q150 95 300 110 T600 120 L600 140 L0 140 Z" fill="#C8E6C9" opacity="0.5"/>
   <path d="M0 130 Q150 110 300 120 T600 130 L600 140 L0 140 Z" fill="#95C49A" opacity="0.6"/>
   <g transform="translate(60 100)">
@@ -114,6 +114,25 @@ const GARDEN_SVG = `<svg class="garden-svg" viewBox="0 0 600 140" xmlns="http://
   </g>
   <g transform="translate(80 40)">
     <path d="M0 0 Q-5 -4 -8 0 Q-9 4 -5 4 Q-2 4 0 0" fill="#D8BFD8" opacity="0.6"/>
+  </g>
+  <g transform="translate(560 105)">
+    <circle cx="0" cy="0" r="5" fill="#FFD8B1"/>
+    <circle cx="-4" cy="-2" r="4" fill="#F8C8DC"/>
+    <circle cx="4" cy="-2" r="4" fill="#F8C8DC"/>
+    <circle cx="0" cy="-5" r="4" fill="#F8C8DC"/>
+    <circle cx="0" cy="0" r="2" fill="#E6C895"/>
+    <line x1="0" y1="5" x2="0" y2="40" stroke="#7BAE7F" stroke-width="2"/>
+    <path d="M0 25 Q-8 22 -10 28" stroke="#7BAE7F" stroke-width="1.6" fill="none"/>
+  </g>
+  <g transform="translate(410 100)">
+    <path d="M0 18 C-3 13 -3 6 0 0 C3 6 3 13 0 18" fill="#D8BFD8"/>
+    <line x1="0" y1="18" x2="0" y2="40" stroke="#7BAE7F" stroke-width="2"/>
+  </g>
+  <g transform="translate(260 102)">
+    <ellipse cx="0" cy="0" rx="3" ry="6" fill="#FFCCBC"/>
+    <ellipse cx="0" cy="0" rx="6" ry="3" fill="#FFCCBC"/>
+    <circle cx="0" cy="0" r="1.5" fill="#E6C895"/>
+    <line x1="0" y1="6" x2="0" y2="38" stroke="#7BAE7F" stroke-width="1.8"/>
   </g>
 </svg>`;
 
