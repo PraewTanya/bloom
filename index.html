@@ -280,7 +280,8 @@
       const all = BLOOM.getTodos();
       const t = all.find(x => x.id === id);
       if (!t) return;
-      BLOOM.updateTodo(id, { done: !t.done });
+      const newDone = !t.done;
+      BLOOM.updateTodo(id, { done: newDone, completedAt: newDone ? Date.now() : null });
       refreshPage();
     }
     window.refreshPage = refreshPage;
