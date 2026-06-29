@@ -113,10 +113,11 @@
 
     function group(todos) {
       const today = BLOOM.today();
+      const localYmd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-      const tomorrowStr = tomorrow.toISOString().slice(0,10);
+      const tomorrowStr = localYmd(tomorrow);
       const yest = new Date(); yest.setDate(yest.getDate()-1);
-      const yestStr = yest.toISOString().slice(0,10);
+      const yestStr = localYmd(yest);
       const groups = { 'No date': [], 'Today': [], 'Tomorrow': [], 'Upcoming': [] };
       const completedByDate = new Map(); // key (label) -> { date: 'YYYY-MM-DD', ts: number, items: [] }
       todos.forEach(t => {
